@@ -1,5 +1,7 @@
 # CoasterLab
 
+**▶ [Play it here](https://dtech.github.io/CoasterLab/)**
+
 A real-time physics roller coaster builder, telemetry analyzer and 3D rider simulator that runs in the browser. You sculpt a track in a side-profile editor, check its speeds and G-forces with a dry-run simulation, then ride it in first person through procedurally generated scenery.
 
 It is a single HTML page built on [three.js](https://threejs.org/) (WebGL). Nothing to install, no build step needed to play. It targets high-end Android phones (Galaxy S26 Ultra class) and laptops with a discrete GPU (tested target: GeForce RTX 4060 Laptop).
