@@ -606,7 +606,7 @@
     if (m === 'ride') { resetTrains(); trains.forEach(t => { if (t.phase === 'load') t.timer = 1.0; }); setPlaying(true); if (isBoard() && glOK) setCam('pov'); toast('Ride mode: editing locked'); }
     updUndo(); refreshInspector(); boardDirty = true;
   }
-  function setPlaying(p) { S.playing = p; $('playLbl').textContent = p ? 'Pause' : 'Play'; $('playIco').innerHTML = p ? '<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/>' : '<path d="M4 2.5v11l9-5.5z"/>'; }
+  function setPlaying(p) { S.playing = p; Sound.setPaused(!p); $('playLbl').textContent = p ? 'Pause' : 'Play'; $('playIco').innerHTML = p ? '<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/>' : '<path d="M4 2.5v11l9-5.5z"/>'; }
   function refreshCircuit() { setPressed(['cOpen', 'cClosed'], S.closed ? 'cClosed' : 'cOpen'); }
   function setCircuit(closed) { if (closed === S.closed) return; pushHistory(); S.closed = closed; refreshCircuit(); commit({ resetTrain: true }); toast(closed ? 'Closed circuit: the end now returns to the station' : 'Open shuttle: the train stops or rolls back at the end'); }
   function setAudio(m) { S.audio = m; setPressed(['aOff', 'aTrack', 'aRiders'], ['aOff', 'aTrack', 'aRiders'][m]); Sound.setMode(m); const w = WEATHER[S.env.weather] || {}; Sound.setWeather(w.precip, w.wind); }

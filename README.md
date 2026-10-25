@@ -124,7 +124,7 @@ These figures come from `node tools/check_presets.js`, which also checks that no
 | Pan / zoom an editor | Drag background / scroll wheel | Drag / pinch |
 | Orbit or look around | Drag in Follow or Rider POV | Drag |
 | Undo / redo | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Toolbar buttons |
-| Play / pause | Space | Toolbar button |
+| Play / pause (pausing also silences the audio) | Space | Toolbar button |
 | Delete selected node | Delete or Backspace | Bin button |
 | Previous / next node | `[` / `]` | ‹ / › buttons |
 | Side / Top / Follow / Rider POV | `1` / `2` / `3` / `4` | Camera switcher |

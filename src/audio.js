@@ -41,10 +41,18 @@ function createSound(onError) {
     for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 400 ? i / 400 : 1); } }
     return b;
   }
+  let paused = false, suspendT = 0;
   function setMode(m) {
     mode = m;
-    if (m > 0) { if (!ctx && !init()) { onError && onError('Audio is not available in this browser'); return; } ctx.resume(); master.gain.setTargetAtTime(0.9, ctx.currentTime, 0.15); }
+    if (m > 0) { if (!ctx && !init()) { onError && onError('Audio is not available in this browser'); return; } if (!paused) { clearTimeout(suspendT); ctx.resume(); master.gain.setTargetAtTime(0.9, ctx.currentTime, 0.15); } }
     else if (ctx) master.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+  }
+  // Pausing the ride fades everything out and freezes the audio clock, so screams and launches don't carry on
+  // over a frozen train; playing again picks up where it stopped.
+  function setPaused(p) {
+    paused = !!p; if (!ctx) return; clearTimeout(suspendT);
+    if (paused) { master.gain.setTargetAtTime(0, ctx.currentTime, 0.04); suspendT = setTimeout(() => { if (paused) ctx.suspend(); }, 250); }
+    else if (mode > 0) { ctx.resume(); master.gain.setTargetAtTime(0.9, ctx.currentTime, 0.12); }
   }
   const env = (g, t, peak, a, d) => { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); };
   function noiseBurst(t, dur, f, q, peak, type = 'bandpass', dest = trackBus, a = 0.003) {
@@ -124,13 +132,13 @@ function createSound(onError) {
   }
   function gasp(t) { for (let i = 0; i < 3; i++) { const f = noiseBurst(t + Math.random() * 0.3, 0.35, 1200 + Math.random() * 600, 3, 0.05, 'bandpass', voiceBus, 0.12); void f; } }
   function cheer() {
-    if (!ctx || mode !== 2) return; const t = ctx.currentTime;
+    if (!ctx || mode !== 2 || paused) return; const t = ctx.currentTime;
     noiseBurst(t, 2.4, 1100, 0.6, 0.22, 'bandpass', voiceBus, 0.3);
     for (let i = 0; i < 30; i++) { const tt = t + Math.random() * 2.2; noiseBurst(tt, 0.03, 1700 + Math.random() * 800, 1.2, 0.12 + Math.random() * 0.12, 'highpass', voiceBus, 0.002); }
     woo(t + 0.1, 0.9); laugh(t + 0.4 + Math.random() * 0.6);
   }
   function thunder(delay = 1) {
-    if (!ctx || mode === 0) return; const t = ctx.currentTime + delay;
+    if (!ctx || mode === 0 || paused) return; const t = ctx.currentTime + delay;
     if (delay < 1.2) noiseBurst(t, 0.25, 2500, 0.8, 0.5, 'bandpass', wxBus, 0.005);
     for (let i = 0; i < 4; i++) noiseBurst(t + 0.05 + i * (0.3 + Math.random() * 0.5), 1.8 + Math.random() * 2, 70 + Math.random() * 60, 0.8, 0.55 / (1 + i * 0.4) / Math.max(0.7, delay * 0.5), 'lowpass', wxBus, 0.08);
   }
@@ -141,7 +149,7 @@ function createSound(onError) {
     gustG.gain.setTargetAtTime((wind || 0) * 0.16, t, 1);
   }
   function update(p) {
-    if (!ctx || mode === 0) return; const t = ctx.currentTime; const v = Math.abs(p.v);
+    if (!ctx || mode === 0 || paused) return; const t = ctx.currentTime; const v = Math.abs(p.v);
     rumbleG.gain.setTargetAtTime(Math.pow(Math.min(1, v / 32), 1.25) * (p.wood ? 1.15 : 0.95), t, 0.08); rumbleF.frequency.setTargetAtTime(70 + v * (p.wood ? 7 : 5.5), t, 0.1);
     windG.gain.setTargetAtTime(Math.min(1.2, (v / 36) ** 2) * (p.pov ? 0.6 : 0.4), t, 0.12); windF.frequency.setTargetAtTime(320 + v * 42, t, 0.12);
     const onBr = (p.type === T_BRAKES || p.type === T_TRIM || p.type === T_BLOCK) && v > 0.5; const bf = 120 + v * 24;
@@ -169,6 +177,6 @@ function createSound(onError) {
     wasLift = !!p.onLift;
     if (weatherKind === 'rain' && Math.random() < 0.3) noiseBurst(t + Math.random() * 0.1, 0.01, 3000 + Math.random() * 3000, 2, 0.02 + Math.random() * 0.04, 'bandpass', wxBus, 0.001);
   }
-  return { setMode, update, cheer, thunder, setWeather, get mode() { return mode; } };
+  return { setMode, setPaused, update, cheer, thunder, setWeather, get mode() { return mode; } };
 }
 // ===================== END AUDIO =====================
