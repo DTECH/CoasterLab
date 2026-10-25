@@ -1,0 +1,217 @@
+<title>CoasterLab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0d1217">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/*{{CSS}}*/
+</style>
+
+<div id="app">
+  <header id="nav">
+    <button class="brand" id="bHome" title="Back to the start screen" aria-label="CoasterLab start screen">
+      <svg viewBox="0 0 30 22" fill="none" aria-hidden="true"><path d="M1 19 C5 19 6 3 11 3 C16 3 15 15 19 15 C23 15 23 8 29 8" stroke="#f2b33d" stroke-width="2.2" stroke-linecap="round"/><path d="M4 21V16M11 21V5M19 21V16M26 21V10" stroke="#5c6b78" stroke-width="1.4"/></svg>
+      <span class="brandtxt"><b>CoasterLab</b><small>ride engineering studio</small></span>
+    </button>
+    <div class="seg" role="group" aria-label="Application mode">
+      <button id="mBuild" aria-pressed="true">Build</button><button id="mRide" aria-pressed="false">Ride</button>
+    </div>
+    <button class="btn icon" id="bUndo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3 2 6l3 3"/><path d="M2.5 6H10a4 4 0 0 1 0 8H7"/></svg></button>
+    <button class="btn icon" id="bRedo" title="Redo (Ctrl+Y)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m11 3 3 3-3 3"/><path d="M13.5 6H6a4 4 0 0 0 0 8h3"/></svg></button>
+    <span class="sep"></span>
+    <button class="btn" id="bPlay" title="Play / pause (Space)"><svg viewBox="0 0 16 16" fill="currentColor" id="playIco"><path d="M4 2.5v11l9-5.5z"/></svg><span id="playLbl">Pause</span></button>
+    <button class="btn icon" id="bRestart" title="Send train back to the station" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2 2.5v3h3"/></svg></button>
+    <span class="sep"></span>
+    <span class="navlabel">Circuit</span>
+    <div class="seg" role="group" aria-label="Circuit mode"><button id="cOpen" aria-pressed="false">Open shuttle</button><button id="cClosed" aria-pressed="true">Closed</button></div>
+    <span class="navlabel">Audio</span>
+    <div class="seg" role="group" aria-label="Audio"><button id="aOff" aria-pressed="true">Mute</button><button id="aTrack" aria-pressed="false">Track</button><button id="aRiders" aria-pressed="false">Track + Riders</button></div>
+    <span class="sep"></span>
+    <select class="btn" id="selQuality" aria-label="Graphics quality" title="Graphics quality">
+      <option value="auto">Graphics: Auto</option><option value="low">Graphics: Low</option><option value="medium">Graphics: Medium</option><option value="high">Graphics: High</option><option value="ultra">Graphics: Ultra</option>
+    </select>
+    <button class="btn" id="bTime" title="Change time of day"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="9" r="3"/><path d="M1 13h14M8 2v2M3 4.5l1.3 1.3M13 4.5l-1.3 1.3"/></svg><span id="timeLbl">Golden Hour</span></button>
+    <span class="sep"></span>
+    <button class="btn" id="bSave"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h8l2 2v10H3z"/><path d="M5 2v4h5V2M5 14V9h6v5"/></svg>Save / Load</button>
+    <select class="btn" id="selPreset" aria-label="Load a preset coaster"></select>
+    <button class="btn icon" id="bFull" title="Fullscreen viewport" aria-label="Fullscreen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
+  </header>
+
+  <main id="stage">
+    <canvas id="gl" hidden></canvas>
+    <canvas id="board"></canvas>
+    <div id="vignette"></div>
+    <div class="ov" id="camsw"><div class="seg" role="group" aria-label="Camera">
+      <button id="camOverview" aria-pressed="true">Overview</button><button id="camFollow" aria-pressed="false">Follow</button><button id="camPov" aria-pressed="false">Rider POV</button>
+    </div></div>
+    <div class="ov" id="sizesw"><div class="seg" role="group" aria-label="Viewport size">
+      <button data-pct="38" aria-pressed="false">38%</button><button data-pct="56" aria-pressed="true">56%</button><button data-pct="78" aria-pressed="false">78%</button><button data-pct="100" aria-pressed="false">Full</button>
+    </div></div>
+    <div class="ov" id="perf" hidden></div>
+    <div class="ov" id="boardtools">
+      <button class="btn" id="bFit">Fit</button>
+      <button class="btn icon" id="bZoomOut" aria-label="Zoom out">−</button>
+      <button class="btn icon" id="bZoomIn" aria-label="Zoom in">+</button>
+      <button class="btn" id="bVex" title="Vertical exaggeration">Height ×2</button>
+      <button class="btn" id="bColor" title="Colour the track by predicted G-force or speed">Colour: G-force</button>
+    </div>
+    <div class="ov" id="legend"></div>
+    <canvas class="ov" id="minimap" hidden></canvas>
+    <div class="ov" id="hud" hidden>
+      <div class="cell"><div class="k">Segment</div><div class="seg-type" id="hSeg">Station</div></div>
+      <div class="cell"><div class="k">Speed</div><div class="v" id="hSpd">0<small>km/h</small></div></div>
+      <div class="cell"><div class="k">Altitude</div><div class="v" id="hAlt">0<small>m</small></div></div>
+      <div class="cell"><div class="k">Vert G</div><div class="v" id="hVg" style="color:var(--vg)">1.0</div></div>
+      <div class="cell"><div class="k">Lat G</div><div class="v" id="hLg" style="color:var(--lg)">0.0</div></div>
+    </div>
+    <div class="ov" id="povtools" hidden>
+      <button class="btn" id="bGuides" aria-pressed="true" title="Show neon guide chevrons for upcoming turns and drops">Guides</button>
+      <button class="btn" id="bSeat" title="Switch between the front and rear seat">Seat: Front</button>
+      <button class="btn" id="bLook" title="Re-centre the view">Re-centre</button>
+    </div>
+    <div class="ov" id="banner" hidden>
+      <div class="bt" id="banT">HIGH G WARNING</div><div class="bd" id="banD"></div>
+      <button class="btn" id="banClear">Clear</button><button class="btn icon" id="banX" aria-label="Dismiss warning">✕</button>
+    </div>
+    <div class="ov" id="toast" hidden><span id="toastT"></span><button id="toastA" hidden></button></div>
+    <div id="loading" hidden><div class="box"><div class="t">Building scenery</div><div class="s" id="loadS">Terrain, forest, sky and track</div><div class="bar"><i></i></div></div></div>
+  </main>
+
+  <div id="mobilePanels">
+  <aside id="left" class="panel">
+    <section class="sec">
+      <h2>Track elements <span class="tag" id="insTag">after node #1</span></h2>
+      <div class="elgrid editable">
+        <button class="elbtn" data-el="loop"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 16h7c6 0 7-3 7-7a4 4 0 1 0-8 0c0 4 2 7 9 7h9"/></svg><span>Vertical loop</span></button>
+        <button class="elbtn" data-el="camelback"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 16C7 16 8 3 13 3s6 13 12 13"/></svg><span>Camelback</span></button>
+        <button class="elbtn" data-el="bankleft"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16H13a8 8 0 0 1-8-8V2"/><path d="m2 5 3-3 3 3"/></svg><span>Banked left</span></button>
+        <button class="elbtn" data-el="bankright"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16h9a8 8 0 0 0 8-8V2"/><path d="m18 5 3-3 3 3"/></svg><span>Banked right</span></button>
+        <button class="elbtn" data-el="drop"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 2h6c3 0 3 14 8 14h10"/></svg><span>Steep drop</span></button>
+        <button class="elbtn" data-el="helix"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="13" cy="6" rx="10" ry="3"/><path d="M3 6v6c0 2 4 3 10 3s10-1 10-3V6"/></svg><span>Helix</span></button>
+        <button class="elbtn" data-el="scurve"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 16c8 0 3-14 11-14s3 14 11 14"/></svg><span>S-curve</span></button>
+        <button class="elbtn" id="bAppend"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12h14"/><circle cx="20" cy="12" r="3"/><path d="M20 2v5M17.5 4.5h5"/></svg><span>Append node</span></button>
+      </div>
+      <p class="hint">Elements splice in after the selected node and push the rest of the track forward. Double-tap empty space in the Overview to drop in a node.</p>
+    </section>
+    <section class="sec" id="inspector">
+      <h2>Node inspector <span class="tag" id="paintTag"></span></h2>
+      <div class="lockbadge">Ride mode is on. Switch to Build to edit nodes.</div>
+      <div class="insp-head">
+        <button class="btn icon" id="nPrev" aria-label="Previous node">‹</button>
+        <div class="nodeid">Node <b id="nIdx">1</b> <span style="color:var(--faint)">/ <span id="nCount">0</span></span></div>
+        <button class="btn icon" id="nNext" aria-label="Next node">›</button>
+        <button class="btn icon editable" id="nDel" aria-label="Delete node" title="Delete node"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V2.5h4V4M4.5 4l.7 9.5h5.6l.7-9.5"/></svg></button>
+      </div>
+      <div class="editable">
+        <div class="field"><div class="row"><label for="fX">Distance (X)</label><span><input type="number" id="fXn" step="0.5" aria-label="Distance in metres"><span class="unit">m</span></span></div><input type="range" id="fX" min="0" max="1400" step="0.5"></div>
+        <div class="field"><div class="row"><label for="fY">Elevation (Y)</label><span><input type="number" id="fYn" step="0.5" aria-label="Elevation in metres"><span class="unit">m</span></span></div><input type="range" id="fY" min="0" max="160" step="0.5"></div>
+        <div class="field"><div class="row"><label for="fYaw">Turn angle (yaw)</label><span><input type="number" id="fYawn" step="1" aria-label="Turn angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fYaw" min="-90" max="90" step="1">
+          <div class="quick" id="yawQuick"><button data-y="-60">−60°</button><button data-y="-35">−35°</button><button data-y="0">0°</button><button data-y="35">+35°</button><button data-y="60">+60°</button></div></div>
+        <div class="field"><div class="row"><label for="fRoll">Banking (roll)</label><span><input type="number" id="fRolln" step="1" aria-label="Banking angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fRoll" min="-80" max="80" step="1"></div>
+        <div class="field"><div class="row"><label>Segment type (incoming)</label></div>
+          <div class="seg typeseg" role="group" aria-label="Segment type"><button data-t="station">Station</button><button data-t="steel">Steel</button><button data-t="chain">Chain lift</button><button data-t="brakes">Brakes</button></div></div>
+        <div class="btnrow">
+          <button class="btn" id="bAutoBank" title="Bank this node so riders feel almost no sideways force at the predicted speed">Auto-bank</button>
+          <button class="btn" id="bAlign" title="Level the final node with the station">Align end to station</button>
+          <button class="btn" id="bPaint" title="Cycle the paint scheme">Paint</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <aside id="right" class="panel">
+    <section class="sec">
+      <div class="statusrow"><span class="pill" id="safety">SAFE</span><span class="lap">Lap <b id="lapN">0</b></span></div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Speed</div><div class="v" id="tSpd">0<small>km/h</small></div></div>
+        <div class="tile"><div class="k">Altitude</div><div class="v" id="tAlt">0<small>m</small></div></div>
+        <div class="tile vg"><div class="k">Vertical G</div><div class="v" id="tVg">1.00</div></div>
+        <div class="tile lg"><div class="k">Lateral G</div><div class="v" id="tLg">0.00</div></div>
+      </div>
+      <div class="peaks">
+        <div class="peak"><div class="k">Peak +G</div><div class="v" id="pMax">1.00</div></div>
+        <div class="peak"><div class="k">Peak −G</div><div class="v" id="pMin">1.00</div></div>
+        <div class="peak"><div class="k">Peak lat</div><div class="v" id="pLat">0.00</div></div>
+        <div class="peak"><div class="k">Top speed</div><div class="v" id="pSpd">0</div></div>
+      </div>
+    </section>
+    <section class="sec">
+      <h2>Energy <span class="tag" id="eTot">0 kJ</span></h2>
+      <div class="bars">
+        <div class="barrow"><div class="row"><span>Kinetic</span><b id="keV">0 kJ</b></div><div class="bar"><i id="keBar"></i></div></div>
+        <div class="barrow"><div class="row"><span>Potential</span><b id="peV">0 kJ</b></div><div class="bar"><i id="peBar"></i></div></div>
+      </div>
+    </section>
+    <section class="sec">
+      <h2>G-force oscilloscope <span class="tag" id="scopeSpan">10 s</span></h2>
+      <canvas id="scope" width="560" height="300"></canvas>
+      <div class="scopelegend"><span><i style="background:var(--vg)"></i>Vertical</span><span><i style="background:var(--lg)"></i>Lateral</span><span><i style="background:var(--crit)"></i>Limits</span></div>
+    </section>
+    <section class="sec">
+      <h2>Design check <span class="tag">dry run</span></h2>
+      <dl class="check" id="check"></dl>
+      <div id="checkNote"></div>
+      <div class="sysline" id="sysline"></div>
+    </section>
+  </aside>
+  </div>
+</div>
+
+<div id="start" role="dialog" aria-modal="true" aria-labelledby="stTitle">
+  <div class="scard">
+    <div class="shead">
+      <svg viewBox="0 0 30 22" fill="none" aria-hidden="true"><path d="M1 19 C5 19 6 3 11 3 C16 3 15 15 19 15 C23 15 23 8 29 8" stroke="#f2b33d" stroke-width="2.2" stroke-linecap="round"/><path d="M4 21V16M11 21V5M19 21V16M26 21V10" stroke="#5c6b78" stroke-width="1.4"/></svg>
+      <div><h1 id="stTitle">CoasterLab</h1><p>Ride a coaster, or build your own and ride that.</p></div>
+    </div>
+    <div class="sstatus" id="stStatus"><span class="dot"></span><span id="stStatusT">Building the 3D scenery…</span></div>
+    <button class="sbtn primary" id="stRide" disabled>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>
+      <span><b id="stRideT">Ride the Hyper-Goliath</b><small id="stRideS">First-person 3D ride · 127 km/h top speed</small></span>
+    </button>
+    <button class="sbtn" id="stBuild">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 19c4 0 5-12 9-12s4 8 7 8 3-4 4-4"/><circle cx="11" cy="7" r="2"/><circle cx="18" cy="15" r="2"/></svg>
+      <span><b>Open the builder</b><small>Drag nodes, add loops and hills, check the G-forces</small></span>
+    </button>
+    <div class="srow">
+      <button class="schip" id="stSound" aria-pressed="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11.5 5.5a3.5 3.5 0 0 1 0 5M13 3.5a6 6 0 0 1 0 9"/></svg><span id="stSoundT">Sound on</span></button>
+      <button class="schip" id="stLoad">Saved designs</button>
+      <button class="schip" id="stFresh" hidden>Start fresh</button>
+    </div>
+    <ul class="stips">
+      <li><b>Riding:</b> drag to look around. Space pauses.</li>
+      <li><b>Building:</b> drag nodes in Overview, double-tap empty space to add one.</li>
+      <li>Click the CoasterLab logo any time to come back here.</li>
+    </ul>
+  </div>
+</div>
+
+<div id="modal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="mhead"><h3 id="mTitle">Save &amp; load</h3><button class="btn icon" id="mClose" aria-label="Close">✕</button></div>
+    <div class="mbody">
+      <div><h4>Save this coaster</h4><div class="saverow"><input id="saveName" maxlength="48" placeholder="Name your design"><button class="btn primary" id="bDoSave">Save</button></div></div>
+      <div><h4>Saved designs</h4><div class="slots" id="slots"></div></div>
+      <div><h4>Export blueprint (.json)</h4><textarea class="json" id="exportBox" readonly></textarea><div class="btnrow"><button class="btn" id="bCopy">Copy JSON</button></div></div>
+      <div><h4>Import blueprint</h4><textarea class="json" id="importBox" placeholder="Paste blueprint JSON here"></textarea>
+        <div class="btnrow"><button class="btn primary" id="bImport">Import pasted JSON</button><label class="btn filelab">Open .json file<input type="file" id="importFile" accept=".json,application/json"></label></div>
+        <p class="hint" id="importMsg"></p></div>
+      <button class="btn primary wide" id="mBack">Back to the coaster</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// three.js loads as an ES module (r160). If the module import is blocked, fall back to the classic build.
+window.THREE_READY = import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js')
+  .catch(() => new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js'; s.onload = () => res(window.THREE); s.onerror = rej; document.head.appendChild(s); }));
+</script>
+<script>
+/*{{CORE}}*/
+</script>
+<script>
+/*{{WORLD}}*/
+</script>
+<script>
+/*{{UI}}*/
+</script>
