@@ -11,17 +11,18 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
-PARTS = [("CSS", "style.css"), ("CORE", "core.js"), ("WORLD", "world.js"), ("UI", "ui.js")]
+# Scripts in load order: plain data and physics first, then rendering, then the app.
+SCRIPTS = ["core.js", "elements.js", "designs.js", "trackgfx.js", "trains.js", "world.js", "audio.js", "share.js", "ui.js"]
 
 
 def fragment() -> str:
     html = (SRC / "template.html").read_text(encoding="utf-8")
-    for tag, name in PARTS:
-        marker = "/*{{%s}}*/" % tag
+    for marker in ("/*{{CSS}}*/", "/*{{SCRIPTS}}*/"):
         if marker not in html:
             sys.exit(f"template.html is missing the {marker} placeholder")
-        html = html.replace(marker, (SRC / name).read_text(encoding="utf-8"))
-    return html
+    html = html.replace("/*{{CSS}}*/", (SRC / "style.css").read_text(encoding="utf-8"))
+    scripts = "\n".join("<script>\n%s\n</script>" % (SRC / name).read_text(encoding="utf-8") for name in SCRIPTS)
+    return html.replace("/*{{SCRIPTS}}*/", scripts)
 
 
 def standalone(frag: str) -> str:

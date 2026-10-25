@@ -21,19 +21,20 @@
     <button class="btn icon" id="bRedo" title="Redo (Ctrl+Y)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m11 3 3 3-3 3"/><path d="M13.5 6H6a4 4 0 0 0 0 8h3"/></svg></button>
     <span class="sep"></span>
     <button class="btn" id="bPlay" title="Play / pause (Space)"><svg viewBox="0 0 16 16" fill="currentColor" id="playIco"><path d="M4 2.5v11l9-5.5z"/></svg><span id="playLbl">Pause</span></button>
-    <button class="btn icon" id="bRestart" title="Send train back to the station" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2 2.5v3h3"/></svg></button>
+    <button class="btn icon" id="bRestart" title="Send the trains back to the station" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2 2.5v3h3"/></svg></button>
     <span class="sep"></span>
     <span class="navlabel">Circuit</span>
     <div class="seg" role="group" aria-label="Circuit mode"><button id="cOpen" aria-pressed="false">Open shuttle</button><button id="cClosed" aria-pressed="true">Closed</button></div>
     <span class="navlabel">Audio</span>
     <div class="seg" role="group" aria-label="Audio"><button id="aOff" aria-pressed="true">Mute</button><button id="aTrack" aria-pressed="false">Track</button><button id="aRiders" aria-pressed="false">Track + Riders</button></div>
     <span class="sep"></span>
+    <button class="btn" id="bDesign" title="Train, cars, track style and colours"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="6" width="13" height="5" rx="1.5"/><circle cx="4.5" cy="12.5" r="1.3"/><circle cx="11.5" cy="12.5" r="1.3"/><path d="M4 6V4.5h3V6M9 6V4.5h3V6"/></svg>Design</button>
+    <button class="btn" id="bScenery" title="Scenery, weather and time of day"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 13 5.5 6l3 4.5L11 8l4 5z"/><circle cx="12" cy="3.5" r="1.6"/></svg><span id="sceneLbl">Scenery</span></button>
     <select class="btn" id="selQuality" aria-label="Graphics quality" title="Graphics quality">
       <option value="auto">Graphics: Auto</option><option value="low">Graphics: Low</option><option value="medium">Graphics: Medium</option><option value="high">Graphics: High</option><option value="ultra">Graphics: Ultra</option>
     </select>
-    <button class="btn" id="bTime" title="Change time of day"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="9" r="3"/><path d="M1 13h14M8 2v2M3 4.5l1.3 1.3M13 4.5l-1.3 1.3"/></svg><span id="timeLbl">Golden Hour</span></button>
     <span class="sep"></span>
-    <button class="btn" id="bSave"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h8l2 2v10H3z"/><path d="M5 2v4h5V2M5 14V9h6v5"/></svg>Save / Load</button>
+    <button class="btn" id="bSave"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2h8l2 2v10H3z"/><path d="M5 2v4h5V2M5 14V9h6v5"/></svg>Save / Share</button>
     <select class="btn" id="selPreset" aria-label="Load a preset coaster"></select>
     <button class="btn icon" id="bFull" title="Fullscreen viewport" aria-label="Fullscreen"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
   </header>
@@ -43,7 +44,7 @@
     <canvas id="board"></canvas>
     <div id="vignette"></div>
     <div class="ov" id="camsw"><div class="seg" role="group" aria-label="Camera">
-      <button id="camOverview" aria-pressed="true">Overview</button><button id="camFollow" aria-pressed="false">Follow</button><button id="camPov" aria-pressed="false">Rider POV</button>
+      <button id="camSide" aria-pressed="true" title="Side profile editor (1)">Side</button><button id="camTop" aria-pressed="false" title="Top-down layout editor (2)">Top</button><button id="camFollow" aria-pressed="false" title="3D chase camera (3)">Follow</button><button id="camPov" aria-pressed="false" title="First-person ride (4)">Rider POV</button>
     </div></div>
     <div class="ov" id="sizesw"><div class="seg" role="group" aria-label="Viewport size">
       <button data-pct="38" aria-pressed="false">38%</button><button data-pct="56" aria-pressed="true">56%</button><button data-pct="78" aria-pressed="false">78%</button><button data-pct="100" aria-pressed="false">Full</button>
@@ -54,7 +55,8 @@
       <button class="btn icon" id="bZoomOut" aria-label="Zoom out">−</button>
       <button class="btn icon" id="bZoomIn" aria-label="Zoom in">+</button>
       <button class="btn" id="bVex" title="Vertical exaggeration">Height ×2</button>
-      <button class="btn" id="bColor" title="Colour the track by predicted G-force or speed">Colour: G-force</button>
+      <button class="btn" id="bColor" title="Colour the track by predicted G-force, speed or height">Colour: G-force</button>
+      <button class="btn" id="bRoute" title="Bend the last turns so the track lines up with the station">Route to station</button>
     </div>
     <div class="ov" id="legend"></div>
     <canvas class="ov" id="minimap" hidden></canvas>
@@ -82,20 +84,13 @@
   <aside id="left" class="panel">
     <section class="sec">
       <h2>Track elements <span class="tag" id="insTag">after node #1</span></h2>
-      <div class="elgrid editable">
-        <button class="elbtn" data-el="loop"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 16h7c6 0 7-3 7-7a4 4 0 1 0-8 0c0 4 2 7 9 7h9"/></svg><span>Vertical loop</span></button>
-        <button class="elbtn" data-el="camelback"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 16C7 16 8 3 13 3s6 13 12 13"/></svg><span>Camelback</span></button>
-        <button class="elbtn" data-el="bankleft"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16H13a8 8 0 0 1-8-8V2"/><path d="m2 5 3-3 3 3"/></svg><span>Banked left</span></button>
-        <button class="elbtn" data-el="bankright"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 16h9a8 8 0 0 0 8-8V2"/><path d="m18 5 3-3 3 3"/></svg><span>Banked right</span></button>
-        <button class="elbtn" data-el="drop"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 2h6c3 0 3 14 8 14h10"/></svg><span>Steep drop</span></button>
-        <button class="elbtn" data-el="helix"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="13" cy="6" rx="10" ry="3"/><path d="M3 6v6c0 2 4 3 10 3s10-1 10-3V6"/></svg><span>Helix</span></button>
-        <button class="elbtn" data-el="scurve"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 16c8 0 3-14 11-14s3 14 11 14"/></svg><span>S-curve</span></button>
-        <button class="elbtn" id="bAppend"><svg viewBox="0 0 26 18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12h14"/><circle cx="20" cy="12" r="3"/><path d="M20 2v5M17.5 4.5h5"/></svg><span>Append node</span></button>
-      </div>
-      <p class="hint">Elements splice in after the selected node and push the rest of the track forward. Double-tap empty space in the Overview to drop in a node.</p>
+      <div class="cattabs editable" id="catTabs" role="tablist" aria-label="Element categories"></div>
+      <div class="dirrow editable" id="dirRow"><span>Direction</span><div class="seg" role="group" aria-label="Turn direction"><button id="dirL" aria-pressed="false">Left</button><button id="dirR" aria-pressed="true">Right</button></div></div>
+      <div class="elgrid editable" id="elGrid"></div>
+      <p class="hint" id="elHint">Elements splice in after the selected node and push the rest of the track forward.</p>
     </section>
     <section class="sec" id="inspector">
-      <h2>Node inspector <span class="tag" id="paintTag"></span></h2>
+      <h2>Node inspector</h2>
       <div class="lockbadge">Ride mode is on. Switch to Build to edit nodes.</div>
       <div class="insp-head">
         <button class="btn icon" id="nPrev" aria-label="Previous node">‹</button>
@@ -105,16 +100,23 @@
       </div>
       <div class="editable">
         <div class="field"><div class="row"><label for="fX">Distance (X)</label><span><input type="number" id="fXn" step="0.5" aria-label="Distance in metres"><span class="unit">m</span></span></div><input type="range" id="fX" min="0" max="1400" step="0.5"></div>
-        <div class="field"><div class="row"><label for="fY">Elevation (Y)</label><span><input type="number" id="fYn" step="0.5" aria-label="Elevation in metres"><span class="unit">m</span></span></div><input type="range" id="fY" min="0" max="160" step="0.5"></div>
-        <div class="field"><div class="row"><label for="fYaw">Turn angle (yaw)</label><span><input type="number" id="fYawn" step="1" aria-label="Turn angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fYaw" min="-90" max="90" step="1">
-          <div class="quick" id="yawQuick"><button data-y="-60">−60°</button><button data-y="-35">−35°</button><button data-y="0">0°</button><button data-y="35">+35°</button><button data-y="60">+60°</button></div></div>
-        <div class="field"><div class="row"><label for="fRoll">Banking (roll)</label><span><input type="number" id="fRolln" step="1" aria-label="Banking angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fRoll" min="-80" max="80" step="1"></div>
-        <div class="field"><div class="row"><label>Segment type (incoming)</label></div>
-          <div class="seg typeseg" role="group" aria-label="Segment type"><button data-t="station">Station</button><button data-t="steel">Steel</button><button data-t="chain">Chain lift</button><button data-t="brakes">Brakes</button></div></div>
+        <div class="field"><div class="row"><label for="fY">Elevation (Y)</label><span><input type="number" id="fYn" step="0.5" aria-label="Elevation in metres"><span class="unit">m</span></span></div><input type="range" id="fY" min="0" max="500" step="0.5"></div>
+        <div class="field"><div class="row"><label for="fYaw">Turn angle (yaw)</label><span><input type="number" id="fYawn" step="1" aria-label="Turn angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fYaw" min="-180" max="180" step="1">
+          <div class="quick" id="yawQuick"><button data-y="-90">−90°</button><button data-y="-45">−45°</button><button data-y="0">0°</button><button data-y="45">+45°</button><button data-y="90">+90°</button></div></div>
+        <div class="field"><div class="row"><label for="fRoll">Banking (roll)</label><span><input type="number" id="fRolln" step="1" aria-label="Banking angle in degrees"><span class="unit">°</span></span></div><input type="range" id="fRoll" min="-180" max="180" step="1">
+          <div class="quick" id="rollQuick"><button data-r="-90">−90°</button><button data-r="-45">−45°</button><button data-r="0">0°</button><button data-r="45">+45°</button><button data-r="90">+90°</button><button data-r="180">180°</button></div></div>
+        <div class="field"><div class="row"><label for="fType">Segment type (incoming)</label></div><select class="btn wide sel" id="fType" aria-label="Segment type"></select></div>
+        <div class="field" id="fSpdRow" hidden><div class="row"><label for="fSpd" id="fSpdLbl">Speed</label><span><input type="number" id="fSpdn" step="1" aria-label="Segment speed"><span class="unit">km/h</span></span></div><input type="range" id="fSpd" min="5" max="250" step="1"></div>
+        <div class="field" id="fSysRow" hidden><div class="row"><label for="fSys">Launch system</label></div><select class="btn wide sel" id="fSys"><option value="lsm">LSM (about 1 G)</option><option value="hydraulic">Hydraulic (about 1.6 G)</option><option value="pneumatic">Pneumatic (about 2.4 G)</option></select></div>
+        <div class="field" id="fHoldRow" hidden><div class="row"><label for="fHold">Hold the train for</label><span><input type="number" id="fHoldn" step="0.5" min="0" max="20" aria-label="Hold time in seconds"><span class="unit">s</span></span></div><input type="range" id="fHold" min="0" max="10" step="0.5"></div>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="fTunnel"> Tunnel over this segment</label>
+          <label class="chk" title="Advanced: at a vertical point, the track reverses direction and the riders' frame flips (used by Immelmanns and dive loops)"><input type="checkbox" id="fFlip"> Direction flip (vertical point)</label>
+        </div>
         <div class="btnrow">
           <button class="btn" id="bAutoBank" title="Bank this node so riders feel almost no sideways force at the predicted speed">Auto-bank</button>
           <button class="btn" id="bAlign" title="Level the final node with the station">Align end to station</button>
-          <button class="btn" id="bPaint" title="Cycle the paint scheme">Paint</button>
+          <button class="btn" id="bAppend" title="Add a node at the end of the track">Append node</button>
         </div>
       </div>
     </section>
@@ -122,7 +124,7 @@
 
   <aside id="right" class="panel">
     <section class="sec">
-      <div class="statusrow"><span class="pill" id="safety">SAFE</span><span class="lap">Lap <b id="lapN">0</b></span></div>
+      <div class="statusrow"><span class="pill" id="safety">SAFE</span><span class="lap"><span id="trainLbl"></span>Lap <b id="lapN">0</b></span></div>
       <div class="tiles">
         <div class="tile"><div class="k">Speed</div><div class="v" id="tSpd">0<small>km/h</small></div></div>
         <div class="tile"><div class="k">Altitude</div><div class="v" id="tAlt">0<small>m</small></div></div>
@@ -135,6 +137,7 @@
         <div class="peak"><div class="k">Peak lat</div><div class="v" id="pLat">0.00</div></div>
         <div class="peak"><div class="k">Top speed</div><div class="v" id="pSpd">0</div></div>
       </div>
+      <div class="blocks" id="blocksRow" hidden></div>
     </section>
     <section class="sec">
       <h2>Energy <span class="tag" id="eTot">0 kJ</span></h2>
@@ -152,6 +155,7 @@
       <h2>Design check <span class="tag">dry run</span></h2>
       <dl class="check" id="check"></dl>
       <div id="checkNote"></div>
+      <div id="clashList"></div>
       <div class="sysline" id="sysline"></div>
     </section>
   </aside>
@@ -167,11 +171,11 @@
     <div class="sstatus" id="stStatus"><span class="dot"></span><span id="stStatusT">Building the 3D scenery…</span></div>
     <button class="sbtn primary" id="stRide" disabled>
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>
-      <span><b id="stRideT">Ride the Hyper-Goliath</b><small id="stRideS">First-person 3D ride · 127 km/h top speed</small></span>
+      <span><b id="stRideT">Ride the Hyper-Goliath</b><small id="stRideS">First-person 3D ride</small></span>
     </button>
     <button class="sbtn" id="stBuild">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 19c4 0 5-12 9-12s4 8 7 8 3-4 4-4"/><circle cx="11" cy="7" r="2"/><circle cx="18" cy="15" r="2"/></svg>
-      <span><b>Open the builder</b><small>Drag nodes, add loops and hills, check the G-forces</small></span>
+      <span><b>Open the builder</b><small>Shape the track from the side and from above, add loops, rolls and launches</small></span>
     </button>
     <div class="srow">
       <button class="schip" id="stSound" aria-pressed="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M11.5 5.5a3.5 3.5 0 0 1 0 5M13 3.5a6 6 0 0 1 0 9"/></svg><span id="stSoundT">Sound on</span></button>
@@ -180,23 +184,80 @@
     </div>
     <ul class="stips">
       <li><b>Riding:</b> drag to look around. Space pauses.</li>
-      <li><b>Building:</b> drag nodes in Overview, double-tap empty space to add one.</li>
+      <li><b>Building:</b> Side view shapes hills and drops, Top view bends the turns.</li>
       <li>Click the CoasterLab logo any time to come back here.</li>
     </ul>
   </div>
 </div>
 
-<div id="modal" hidden>
+<div id="modal" class="sheetwrap" hidden>
   <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="mTitle">
-    <div class="mhead"><h3 id="mTitle">Save &amp; load</h3><button class="btn icon" id="mClose" aria-label="Close">✕</button></div>
+    <div class="mhead"><h3 id="mTitle">Save &amp; share</h3><button class="btn icon" id="mClose" aria-label="Close">✕</button></div>
     <div class="mbody">
       <div><h4>Save this coaster</h4><div class="saverow"><input id="saveName" maxlength="48" placeholder="Name your design"><button class="btn primary" id="bDoSave">Save</button></div></div>
-      <div><h4>Saved designs</h4><div class="slots" id="slots"></div></div>
-      <div><h4>Export blueprint (.json)</h4><textarea class="json" id="exportBox" readonly></textarea><div class="btnrow"><button class="btn" id="bCopy">Copy JSON</button></div></div>
-      <div><h4>Import blueprint</h4><textarea class="json" id="importBox" placeholder="Paste blueprint JSON here"></textarea>
-        <div class="btnrow"><button class="btn primary" id="bImport">Import pasted JSON</button><label class="btn filelab">Open .json file<input type="file" id="importFile" accept=".json,application/json"></label></div>
+      <div><h4>Saved designs <span class="tag" id="syncTag"></span></h4><div class="slots" id="slots"></div></div>
+      <div><h4>Move to another device</h4>
+        <p class="hint">Saves stay in this browser. To ride a design on your phone or laptop, share a link or QR code, or turn on GitHub Gist sync below.</p>
+        <div class="btnrow"><button class="btn" id="bShareLink">Copy share link</button><button class="btn" id="bQR">Show QR code</button><button class="btn" id="bDownload">Download .json</button></div>
+        <div id="qrBox" hidden></div>
+        <input class="json one" id="shareBox" readonly hidden aria-label="Share link">
+      </div>
+      <div class="syncbox"><h4>GitHub Gist sync</h4>
+        <p class="hint">Keeps your saved designs in a private gist so every device sees the same list. Create a token at GitHub → Settings → Developer settings → Personal access tokens, with only the <b>gist</b> permission. The token stays in this browser.</p>
+        <div class="saverow"><input id="gistToken" type="password" autocomplete="off" placeholder="Token with gist scope"><button class="btn" id="bSyncNow">Sync now</button></div>
+        <div class="btnrow"><button class="btn" id="bSyncOff" hidden>Turn off sync</button></div>
+        <p class="hint" id="syncMsg"></p>
+      </div>
+      <div><h4>Blueprint JSON</h4><textarea class="json" id="exportBox" readonly></textarea><div class="btnrow"><button class="btn" id="bCopy">Copy JSON</button></div></div>
+      <div><h4>Import blueprint</h4><textarea class="json" id="importBox" placeholder="Paste blueprint JSON or a share link here"></textarea>
+        <div class="btnrow"><button class="btn primary" id="bImport">Import</button><label class="btn filelab">Open .json file<input type="file" id="importFile" accept=".json,application/json"></label></div>
         <p class="hint" id="importMsg"></p></div>
       <button class="btn primary wide" id="mBack">Back to the coaster</button>
+    </div>
+  </div>
+</div>
+
+<div id="designSheet" class="sheetwrap side" hidden>
+  <div class="mbox" role="dialog" aria-labelledby="dTitle">
+    <div class="mhead"><h3 id="dTitle">Design</h3><button class="btn icon" id="dClose" aria-label="Close">✕</button></div>
+    <div class="mbody">
+      <div><h4>Train</h4>
+        <label class="lab" for="dTrain">Train type</label><select class="btn wide sel" id="dTrain"></select>
+        <div class="grid3">
+          <div><label class="lab" for="dCars">Cars</label><input class="num" type="number" id="dCars" min="1" max="10"></div>
+          <div><label class="lab" for="dRows">Rows per car</label><input class="num" type="number" id="dRows" min="1" max="3"></div>
+          <div><label class="lab" for="dSeats">Seats per row</label><input class="num" type="number" id="dSeats" min="1" max="10"></div>
+        </div>
+        <label class="lab" for="dTrains">Trains on the circuit <span class="tag" id="dTrainsTag"></span></label>
+        <div class="seg wide" role="group" id="dTrains"><button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button></div>
+        <label class="chk"><input type="checkbox" id="dRiders"> Riders on board</label>
+        <label class="lab" for="dOcc">Seats filled <span class="tag" id="dOccTag"></span></label><input type="range" id="dOcc" min="10" max="100" step="5">
+      </div>
+      <div><h4>Colours</h4>
+        <label class="lab" for="dPaint">Paint scheme</label><select class="btn wide sel" id="dPaint"></select>
+        <div class="colgrid" id="dColors"></div>
+        <label class="lab" for="dPattern">Car pattern</label><select class="btn wide sel" id="dPattern"></select>
+      </div>
+      <div><h4>Track</h4>
+        <label class="lab" for="dTrack">Track style</label><select class="btn wide sel" id="dTrack"></select>
+        <label class="lab" for="dSupports">Supports</label><select class="btn wide sel" id="dSupports"></select>
+        <label class="chk"><input type="checkbox" id="dCatwalks"> Catwalks on lifts and brake runs</label>
+        <label class="chk"><input type="checkbox" id="dLights"> LED track lighting</label>
+      </div>
+      <button class="btn primary wide" id="dDone">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="scenerySheet" class="sheetwrap side" hidden>
+  <div class="mbox" role="dialog" aria-labelledby="sTitle">
+    <div class="mhead"><h3 id="sTitle">Scenery</h3><button class="btn icon" id="sClose" aria-label="Close">✕</button></div>
+    <div class="mbody">
+      <div><h4>Landscape</h4><div class="optgrid" id="sScenery"></div></div>
+      <div><h4>Time of day</h4><div class="optgrid" id="sTod"></div></div>
+      <div><h4>Weather</h4><div class="optgrid" id="sWeather"></div></div>
+      <p class="hint" id="sHint">Changing the landscape rebuilds the terrain and forest, which takes a moment on phones.</p>
+      <button class="btn primary wide" id="sDone">Done</button>
     </div>
   </div>
 </div>
@@ -206,12 +267,4 @@
 window.THREE_READY = import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js')
   .catch(() => new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js'; s.onload = () => res(window.THREE); s.onerror = rej; document.head.appendChild(s); }));
 </script>
-<script>
-/*{{CORE}}*/
-</script>
-<script>
-/*{{WORLD}}*/
-</script>
-<script>
-/*{{UI}}*/
-</script>
+/*{{SCRIPTS}}*/
