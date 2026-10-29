@@ -74,7 +74,7 @@
     </div>
     <div class="ov" id="banner" hidden>
       <div class="bt" id="banT">HIGH G WARNING</div><div class="bd" id="banD"></div>
-      <button class="btn" id="banClear">Clear</button><button class="btn icon" id="banX" aria-label="Dismiss warning">✕</button>
+      <button class="btn" id="banClear">Clear</button><button class="btn" id="banOff" title="Stop showing physics warnings (turn them back on in the telemetry panel)">Turn off</button><button class="btn icon" id="banX" aria-label="Dismiss warning">✕</button>
     </div>
     <div class="ov" id="toast" hidden><span id="toastT"></span><button id="toastA" hidden></button></div>
     <div id="loading" hidden><div class="box"><div class="t">Building scenery</div><div class="s" id="loadS">Terrain, forest, sky and track</div><div class="bar"><i></i></div></div></div>
@@ -125,6 +125,7 @@
   <aside id="right" class="panel">
     <section class="sec">
       <div class="statusrow"><span class="pill" id="safety">SAFE</span><span class="lap"><span id="trainLbl"></span>Lap <b id="lapN">0</b></span></div>
+      <label class="chk alerts"><input type="checkbox" id="fAlerts" checked> Show physics warnings over the view</label>
       <div class="tiles">
         <div class="tile"><div class="k">Speed</div><div class="v" id="tSpd">0<small>km/h</small></div></div>
         <div class="tile"><div class="k">Altitude</div><div class="v" id="tAlt">0<small>m</small></div></div>

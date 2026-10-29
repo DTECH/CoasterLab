@@ -6,7 +6,7 @@ const TRAIN_TYPES = {
   hyper:     { label: 'Hyper (open air, T-bar)', cars: 6, rows: 2, seats: 2, seatW: 0.62, rowPitch: 1.12, mount: 'top', pose: 'sit', restraint: 'tbar', body: 'hyper', hl: 1.15, envOff: 1.0, envR: 1.7, mass: 1100, track: 'tubular' },
   looping:   { label: 'Looping (shoulder harness)', cars: 7, rows: 1, seats: 4, seatW: 0.6, rowPitch: 1.2, mount: 'top', pose: 'sit', restraint: 'otsr', body: 'looper', hl: 1.15, envOff: 1.0, envR: 1.8, mass: 900, track: 'box' },
   floorless: { label: 'Floorless (feet dangling)', cars: 8, rows: 1, seats: 4, seatW: 0.6, rowPitch: 1.2, mount: 'top', pose: 'hang', restraint: 'otsr', body: 'floorless', hl: 1.25, envOff: 0.9, envR: 1.8, mass: 850, track: 'box' },
-  standup:   { label: 'Stand-up', cars: 7, rows: 1, seats: 4, seatW: 0.6, rowPitch: 1.15, mount: 'top', pose: 'stand', restraint: 'standup', body: 'standup', hl: 1.55, envOff: 1.2, envR: 1.9, mass: 850, track: 'box' },
+  standup:   { label: 'Stand-up', cars: 7, rows: 1, seats: 4, seatW: 0.6, rowPitch: 1.15, mount: 'top', pose: 'stand', restraint: 'standup', body: 'standup', hl: 1.8, envOff: 1.3, envR: 2.0, mass: 850, track: 'box' },
   inverted:  { label: 'Inverted (hanging, ski-lift seats)', cars: 8, rows: 1, seats: 4, seatW: 0.62, rowPitch: 1.25, mount: 'below', pose: 'hang', restraint: 'otsr', body: 'inverted', hl: -1.35, envOff: -1.55, envR: 1.9, mass: 950, track: 'box' },
   suspended: { label: 'Suspended (swinging cars)', cars: 6, rows: 2, seats: 2, seatW: 0.62, rowPitch: 1.05, mount: 'swing', pose: 'sit', restraint: 'lap', body: 'suspended', hl: -1.75, envOff: -1.9, envR: 2.1, mass: 1000, track: 'tubular' },
   flying:    { label: 'Flying (riders lie face down)', cars: 8, rows: 1, seats: 4, seatW: 0.62, rowPitch: 1.35, mount: 'below', pose: 'prone', restraint: 'vest', body: 'flying', hl: -1.0, envOff: -1.15, envR: 1.8, mass: 950, prone: true, track: 'box' },
@@ -46,13 +46,27 @@ function defaultDesign(trainKey = 'hyper', paint = 0) {
     track: tt.track, supports: tt.track === 'wood' || tt.track === 'ibox' ? 'wood' : tt.track === 'box' ? 'box' : 'steel', paint,
     colors: { rail: p.rail, spine: p.spine, support: p.support, body: p.body, accent: p.accent, seat: p.seat, restraint: p.restraint } };
 }
+// Space the train sweeps in its own cross-section, measured from the car and rider models with arms raised:
+// [half width, lowest point, highest point] in metres relative to the rails (positive is toward the riders' heads
+// for cars on top of the track). Supports, catwalks and the station are kept out of it.
+const ENV_BOX = {
+  hyper: [0.95, -0.35, 2.05], looping: [1.5, -0.35, 2.05], floorless: [1.5, -0.35, 2.15], standup: [1.5, -0.35, 2.7],
+  inverted: [1.55, -2.5, 0.45], suspended: [2.6, -2.9, 0.45], flying: [1.55, -1.95, 0.45], wing: [2.05, -0.7, 1.35],
+  dive: [2.7, -0.35, 2.6], fourd: [2.25, -1.15, 1.25], bobsled: [1.2, -0.1, 1.9], mouse: [0.9, -0.35, 2.0],
+  mine: [0.95, -0.35, 2.0], wooden: [0.95, -0.35, 2.0], spinning: [1.4, -0.35, 2.05]
+};
+function envBoxFor(train, seats) {
+  const tt = TRAIN_TYPES[train] || TRAIN_TYPES.hyper, b = (ENV_BOX[train] || ENV_BOX.hyper).slice();
+  if (seats && seats !== tt.seats) b[0] = Math.max(0.9, b[0] + (seats - tt.seats) * tt.seatW / (tt.mount === 'wing' ? 2 : 2));
+  return b;
+}
 // physics spec for the core simulation from a design
 function trainSpecFor(d) {
   const tt = TRAIN_TYPES[d.train] || TRAIN_TYPES.hyper;
   const rows = clamp(d.rows || tt.rows, 1, 3), cars = clamp(d.cars || tt.cars, 1, 10);
   const carLen = Math.max(1.8, rows * tt.rowPitch + 0.5);
   const seats = d.seats || tt.seats;
-  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone };
+  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone, box: envBoxFor(d.train, seats) };
 }
 
 const SCENERY = {

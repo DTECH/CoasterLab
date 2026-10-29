@@ -15,14 +15,14 @@
   const prefs = LS.get(K_PREFS, {});
   const S = {
     nodes: [], closed: true, sel: 1, mode: 'build', cam: prefs.cam && prefs.cam !== 'overview' ? prefs.cam : 'follow', playing: true, audio: 0,
-    quality: prefs.quality || 'auto', guides: prefs.guides !== false, colorMode: prefs.colorMode || 'g', vex: prefs.vex || 3,
+    quality: prefs.quality || 'auto', guides: prefs.guides !== false, alerts: prefs.alerts !== false, colorMode: prefs.colorMode || 'g', vex: prefs.vex || 3,
     viewPct: prefs.viewPct || 56, seat: 0, name: '', dir: prefs.dir || 1, cat: prefs.cat || 'hills',
     design: prefs.design ? { ...defaultDesign(), ...prefs.design, colors: { ...defaultDesign().colors, ...(prefs.design.colors || {}) } } : defaultDesign('hyper', 0),
     env: { scenery: prefs.env?.scenery || 'alpine', tod: prefs.env?.tod || prefs.tod || 'golden', weather: prefs.env?.weather || 'fair' }
   };
   const view = { mode: 'side', az: 0.95, el: 0.2, dist: 30, lookYaw: 0, lookPitch: 0, seat: 0, train: 0 };
   let trk = null, an = null, clear = null, trains = [], glOK = false, lastAn = 0, plan = null;
-  const savePrefs = () => LS.set(K_PREFS, { cam: S.cam, quality: S.quality, guides: S.guides, colorMode: S.colorMode, vex: S.vex, viewPct: S.viewPct, dir: S.dir, cat: S.cat, design: S.design, env: S.env });
+  const savePrefs = () => LS.set(K_PREFS, { cam: S.cam, quality: S.quality, guides: S.guides, alerts: S.alerts, colorMode: S.colorMode, vex: S.vex, viewPct: S.viewPct, dir: S.dir, cat: S.cat, design: S.design, env: S.env });
 
   // ---------- history ----------
   const undoStack = [], redoStack = []; let editing = false;
@@ -558,7 +558,7 @@
   }
   const alertS = { dismissed: {}, shown: null };
   function showBanner(lv, vg, lg, s) {
-    if (alertS.dismissed[lv.code]) return;
+    if (!S.alerts || alertS.dismissed[lv.code]) return;
     if (alertS.shown && alertS.shown.sev > lv.sev && !$('banner').hidden) return;
     alertS.shown = lv; const b = $('banner'); b.hidden = false; b.classList.toggle('amber', lv.sev < 3);
     $('banT').textContent = lv.label;
@@ -567,6 +567,9 @@
     $('banD').textContent = `${what} at ${Math.round(s)} m. ${fix}`;
   }
   $('banClear').onclick = () => { resetPeaks(); alertS.dismissed = {}; alertS.shown = null; $('banner').hidden = true; };
+  function setAlerts(on) { S.alerts = on; $('fAlerts').checked = on; if (!on) { $('banner').hidden = true; alertS.shown = null; } savePrefs(); }
+  $('fAlerts').onchange = () => { setAlerts($('fAlerts').checked); toast($('fAlerts').checked ? 'Physics warnings on' : 'Physics warnings off. The safety status still shows in the telemetry panel.'); };
+  $('banOff').onclick = () => { setAlerts(false); toast('Physics warnings off. Turn them back on in the telemetry panel.'); };
   $('banX').onclick = () => { if (alertS.shown) alertS.dismissed[alertS.shown.code] = true; alertS.shown = null; $('banner').hidden = true; };
   const forces = []; const gs = { vg: 1, lg: 0 };
   let teleT = 0, scopeT = 0, perfT = 0;
@@ -890,7 +893,7 @@
 
   // ---------- boot ----------
   async function boot() {
-    $('selQuality').value = S.quality; $('bVex').textContent = `Height ×${S.vex}`; $('bColor').textContent = colorLbl[S.colorMode] || colorLbl.g;
+    $('selQuality').value = S.quality; $('fAlerts').checked = S.alerts; $('bVex').textContent = `Height ×${S.vex}`; $('bColor').textContent = colorLbl[S.colorMode] || colorLbl.g;
     $('bGuides').setAttribute('aria-pressed', String(S.guides));
     renderPalette(); refreshScenerySheet();
     const auto = LS.get(K_AUTO, null);

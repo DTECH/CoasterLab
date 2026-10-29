@@ -54,15 +54,20 @@ Loops, top hats and half loops are force-integrated: the curve is computed so ri
 ### Design: trains, cars and track
 The **Design** panel slides in beside the 3D view, so changes show live.
 - **15 train types:** hyper (open air, T-bar), looping (shoulder harness), floorless, stand-up, inverted (hanging), suspended (swinging cars), flying (riders face down), wing (seats beside the track), dive machine, 4th dimension (rotating seats), bobsled, wild mouse, mine train, classic wooden (PTC) and spinning cars. Each has its own car body, seating pose, restraint, mount (above, below, beside the track) and physics mass.
+- **Car models:** clear-coated shells lofted from rounded cross-sections with a sculpted nose on the front car, padded bucket seats with headrests, shaped restraints (T-bars, lap bars, shoulder harnesses with foam pads, flying vests), and wheel assemblies with road, guide and upstop wheels on each rail.
 - Cars per train, rows per car and seats per row.
 - **Several trains** on one circuit, up to what the block sections allow. Block brakes hold a train until the section ahead is clear.
-- **Riders on board** with a seat-fill percentage. Riders are animated: arms go up on airtime and drops, heads turn into turns, bodies lean with the G-forces.
+- **Riders on board** with a seat-fill percentage. Riders have shaped bodies, faces (eyes, brows, nose, ears and a mouth that opens when they scream), short, long or ponytail hair, sleeves, hands and shoes in varied colours. They are animated: arms go up on airtime and drops, hands hold the restraint otherwise, heads turn into turns and bodies lean with the G-forces.
 - **Colours:** seven paint schemes plus custom colours for car body, accent, seats, restraints, rails, spine and supports, and car patterns (solid, racing stripe, two-tone, flames, checker, numbers).
 - **Track styles:** steel tubular single spine, steel box spine (B&M style), triangle truss (Intamin style), hybrid I-Box on wood, wooden with flat steel, flat steel (wild mouse), bobsled trough.
-- **Supports:** round or square steel columns, wooden lattice, or none. Supports are placed with clearance checks, so turns and inversions get columns offset to the side with arms when the train's envelope would hit a straight column. Wooden structures are bents tied together with ledgers.
+- **Supports:** round or square steel columns, wooden lattice, or none. Every column, arm, brace and wooden member is checked against the space the chosen train sweeps (its width, the riders' feet and raised arms, swinging or rotating seats), so turns and inversions get columns offset to the side with arms when a straight column would be hit. Wooden bents sit square under banked track and are tied together with ledgers. Catwalks and station platforms move outward for wide trains such as wing and dive coasters.
 - Catwalks on lifts and brake runs, and optional LED track lighting.
 
 ![Design panel with an inverted train](docs/images/design-panel.jpg)
+
+![Riders in a hyper coaster car](docs/images/riders.jpg)
+
+![Wing coaster on the lift, with the catwalk and supports kept clear of the seats](docs/images/wing-catwalk.jpg)
 
 ### Scenery and weather
 The **Scenery** panel picks the landscape, time of day and weather:
@@ -78,7 +83,7 @@ The **Scenery** panel picks the landscape, time of day and weather:
 - **Physics** by arc length with gravity averaged over the train, rolling friction and aerodynamic drag. Lifts pull at their set speed with anti-rollback, launches accelerate at their system's rate (LSM about 1 G, hydraulic about 1.6 G, pneumatic about 2.4 G) and relaunch a train that rolls back, trims slow the train to a set speed, and block brakes stop it when the next block is occupied.
 - **G-forces** come from track curvature, speed, tangential acceleration and gravity, resolved into each rider's frame (flying trains measure G into the seat).
 - **Design check** reruns a dry-run simulation on every edit and reports length, height, top speed, peak and lowest vertical G, peak lateral G, inversion count, airtime, ride time, block sections and how many trains can run, track clashes (with **Show** buttons that jump to them in the Top view) and crossovers.
-- A scrolling 10-second **G-force oscilloscope**, live **energy** bars and **safety alerts** for HIGH G, BLACKOUT, REDOUT and LATERAL G. In the rider view, high G greys out and negative G reddens the edges of the screen.
+- A scrolling 10-second **G-force oscilloscope**, live **energy** bars and **safety alerts** for HIGH G, BLACKOUT, REDOUT and LATERAL G. The pop-up warnings can be turned off with **Turn off** on the warning or the checkbox in the telemetry panel; the safety status stays visible in the panel. In the rider view, high G greys out and negative G reddens the edges of the screen.
 
 ### 3D views
 - **Follow cam** chases the selected train. Drag to orbit, scroll or pinch to zoom.

@@ -319,3 +319,4 @@ input.json.one { height: 34px; width: 100%; box-sizing: border-box; margin-top: 
 #banner .bd { max-width: 420px; }
 #legend { top: 10px; bottom: auto; }
 @media (max-width: 1100px) { #legend { top: 52px; right: auto; left: 10px; } }
+.chk.alerts { margin-top: 10px; font-size: 12px; }

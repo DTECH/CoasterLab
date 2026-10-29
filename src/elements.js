@@ -395,6 +395,7 @@ const A = 'auto';
 function withEl(nodes, kind, dir = 1, v) { const k = nodes.length - 1; return spliceElement(nodes, k, kind, v || energySpeed(nodes, k), dir).nodes; }
 function shiftFrom(list, dx) { return list.map(n => ({ ...n, x: rnd2(n.x + dx) })); }
 function chain(base, more) { const last = base[base.length - 1]; return base.concat(shiftFrom(more, last.x)); }
+const DIVE_END = { L0: 41.5, sp: 15, a: -42, b: 42, L1: 24.5 };
 const INV_END = { a: -69, L: 0, b: 74, c: 46 };
 const PRESET_DEFS = {
   hyper: () => ({ name: 'Hyper-Goliath Mega Coaster', closed: true, style: { train: 'hyper', track: 'tubular', supports: 'steel', paint: 0 }, nodes: [
@@ -447,10 +448,14 @@ const PRESET_DEFS = {
     n = withEl(n, 'holddrop', 1, 4);
     n = chain(n, [P(10, 5)]);
     n = withEl(n, 'immelmann', 1);
+    // jog away from the station, turn back east of it, twist, then line up behind it for the brake run
+    const E = DIVE_END;
+    n = chain(n, [P(14, 6, 24, A), P(34, 6, -24, A), P(46, 6)]);
     n = withEl(n, 'camelback');
-    n = chain(n, [P(16, 6, 60, A), P(36, 6, 60, A), P(56, 6, 60, A), P(76, 5.5)]);
+    n = withEl(n, 'speedhill');
+    n = chain(n, [P(E.L0 - 22, 6), P(E.L0, 6, 0, 0, 'trim', { spd: 52 }), P(E.L0 + E.sp, 6, -60, A), P(E.L0 + 2 * E.sp, 6, -60, A), P(E.L0 + 3 * E.sp, 6, -60, A), P(E.L0 + 4 * E.sp, 5.5)]);
     n = withEl(n, 'inline', 1);
-    n = chain(n, [P(16, 5), P(40, 4.8, 0, 0, 'brakes'), P(66, 4.6, 0, 0, 'brakes')]);
+    n = chain(n, [P(16, 5), P(16 + E.L1, 5, E.a, A), P(36 + E.L1, 5, E.b, A), P(56 + E.L1, 4.8), P(76 + E.L1, 4.8, 0, 0, 'brakes'), P(100 + E.L1, 4.6, 0, 0, 'brakes')]);
     return { name: 'Dive Machine', closed: true, style: { train: 'dive', track: 'box', supports: 'steel', paint: 2 }, nodes: n }; },
   mouse: () => { let n = [P(0, 4, 0, 0, 'station'), P(20, 4, 0, 0, 'station'), P(30, 4.4), P(42, 8, 0, 0, 'tirelift'), P(60, 15, 0, 0, 'tirelift'), P(68, 16, 0, 0, 'tirelift'), P(76, 16)];
     n = withEl(n, 'hairpin', 1, 5); n = chain(n, [P(10, 15.5)]); n = withEl(n, 'hairpin', -1, 5); n = chain(n, [P(10, 15)]); n = withEl(n, 'hairpin', 1, 5);

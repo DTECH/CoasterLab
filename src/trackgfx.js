@@ -172,25 +172,39 @@ function createTrackGfx(THREE, ctx) {
     if (ctx.design().lights) for (const side of [-1, 1]) addMesh(tubeGeometry(t, side * 0.72, sp * 0.18, 0.035, 4, 0, n), mats.led, false, false);
   }
 
-  // ---------- clearance grid (train envelope + rails) ----------
+  // ---------- clearance grid ----------
+  // The train's swept space is an oriented box per track sample (half width x, height range along U, in the car's own
+  // frame), so banked and inverted sections are tested exactly. Rail/structure points keep a small radius and can be
+  // ignored near the section a support is attached to; the train's box never is.
   function makeGrid(t) {
-    const cell = 3, map = new Map(), pts = [];
-    const add = (x, y, z, r, k) => { pts.push([x, y, z, r, k]); const key = Math.floor(x / cell) + ',' + Math.floor(y / cell) + ',' + Math.floor(z / cell); let a = map.get(key); if (!a) map.set(key, a = []); a.push(pts.length - 1); };
+    const cell = 4, map = new Map(), envs = [], rails = [];
+    const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2], uc = (u0 + u1) / 2;
+    const key = (x, y, z) => Math.floor(x / cell) + ',' + Math.floor(y / cell) + ',' + Math.floor(z / cell);
+    const put = (x, y, z, v) => { const kk = key(x, y, z); let a = map.get(kk); if (!a) map.set(kk, a = []); a.push(v); };
     for (let k = 0; k < t.n; k += 2) {
-      add(t.px[k] + t.ux[k] * TRAIN.envOff, t.py[k] + t.uy[k] * TRAIN.envOff, t.pz[k] + t.uz[k] * TRAIN.envOff, TRAIN.envR, k);
-      add(t.px[k], t.py[k], t.pz[k], 0.9, k);
+      const e = { k, p: [t.px[k], t.py[k], t.pz[k]], r: [t.rx[k], t.ry[k], t.rz[k]], u: [t.ux[k], t.uy[k], t.uz[k]], tt: [t.tx[k], t.ty[k], t.tz[k]], env: true };
+      envs.push(e); put(t.px[k] + t.ux[k] * uc, t.py[k] + t.uy[k] * uc, t.pz[k] + t.uz[k] * uc, e);
+      const rr = { k, p: [t.px[k], t.py[k], t.pz[k]], rad: 0.9 }; rails.push(rr); put(t.px[k], t.py[k], t.pz[k], rr);
     }
+    const halfStep = DS * 1.15;
     return { hit(x, y, z, r, ignoreK, ignoreRad) {
       const gx = Math.floor(x / cell), gy = Math.floor(y / cell), gz = Math.floor(z / cell);
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let l = -1; l <= 1; l++) {
         const a = map.get((gx + i) + ',' + (gy + j) + ',' + (gz + l)); if (!a) continue;
-        for (const pi of a) { const p = pts[pi]; if (ignoreK != null && Math.abs(p[4] - ignoreK) * DS < ignoreRad) continue; const d = Math.hypot(p[0] - x, p[1] - y, p[2] - z); if (d < p[3] + r) return true; }
+        for (const e of a) {
+          const dx = x - e.p[0], dy = y - e.p[1], dz = z - e.p[2];
+          if (!e.env) { if (ignoreK != null && Math.abs(e.k - ignoreK) * DS < ignoreRad) continue; if (dx * dx + dy * dy + dz * dz < (e.rad + r) ** 2) return true; continue; }
+          const lt = dx * e.tt[0] + dy * e.tt[1] + dz * e.tt[2]; if (Math.abs(lt) > halfStep + r) continue;
+          const lx = dx * e.r[0] + dy * e.r[1] + dz * e.r[2]; if (Math.abs(lx) > hw + r) continue;
+          const lu = dx * e.u[0] + dy * e.u[1] + dz * e.u[2]; if (lu < u0 - r || lu > u1 + r) continue;
+          return true;
+        }
       }
       return false;
     } };
   }
   function segClear(grid, a, b, r, ownK) {
-    const len = a.distanceTo(b), n = Math.max(1, Math.ceil(len / 1.0));
+    const len = a.distanceTo(b), n = Math.max(1, Math.ceil(len / 0.45));
     for (let i = 0; i <= n; i++) { const f = i / n; const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f, z = a.z + (b.z - a.z) * f; if (grid.hit(x, y, z, r, ownK, i === n ? 3 : 1.2)) return false; }
     return true;
   }
@@ -207,6 +221,7 @@ function createTrackGfx(THREE, ctx) {
     const st0 = 0, st1 = t.stationEnd + 1;
     let lastPlaced = -1e9, prevBent = null;
     const step = isWood ? 3 : 2;
+    const clr = (a, b, r, k) => segClear(grid, a, b, r, k);
     for (let s = 4; s < total - 2; s += step) {
       if (s > st0 && s < st1) continue;
       const k = Math.round(s / DS) % t.n;
@@ -215,39 +230,42 @@ function createTrackGfx(THREE, ctx) {
       A.copy(P).addScaledVector(spineDir, depth);
       const gA = ctx.terrainHeight(A.x, A.z), h = A.y - gA;
       if (h < 0.5) continue;
-      // wooden lattice bents on upright sections
+      // wooden bents: the cap beam sits square under the ties (following the bank), posts splay out to the ground
       if (isWood && spineDir.y < -0.3) {
-        side.set(R.x, 0, R.z); if (side.lengthSq() < 1e-4) continue; side.normalize();
-        const half = 1.0 + h * 0.07;
-        const pL = A.clone().addScaledVector(side, -half), pR = A.clone().addScaledVector(side, half);
-        const gL = ctx.terrainHeight(pL.x, pL.z), gR = ctx.terrainHeight(pR.x, pR.z);
-        const bL = new V3(pL.x, gL - 0.2, pL.z), bR = new V3(pR.x, gR - 0.2, pR.z);
-        if (!segClear(grid, bL, pL, 0.2, k) || !segClear(grid, bR, pR, 0.2, k)) continue;
-        bents.push({ a: bL, b: pL, w: 0.2 }, { a: bR, b: pR, w: 0.2 }, { a: pL.clone().addScaledVector(side, -0.15), b: pR.clone().addScaledVector(side, 0.15), w: 0.16 });
-        const lev = Math.max(1, Math.floor(h / 2.6)), ptsL = [], ptsR = [];
+        const capHalf = 0.95, splay = 0.25 + h * 0.06;
+        const pL = A.clone().addScaledVector(R, -capHalf), pR = A.clone().addScaledVector(R, capHalf);
+        side.set(R.x, 0, R.z); if (side.lengthSq() < 1e-4) { prevBent = null; continue; } side.normalize();
+        const bL = new V3().copy(pL).addScaledVector(side, -splay), bR = new V3().copy(pR).addScaledVector(side, splay);
+        bL.y = ctx.terrainHeight(bL.x, bL.z) - 0.2; bR.y = ctx.terrainHeight(bR.x, bR.z) - 0.2;
+        if (!clr(bL, pL, 0.18, k) || !clr(bR, pR, 0.18, k) || !clr(pL, pR, 0.12, k)) { prevBent = null; continue; }
+        const local = [{ a: bL, b: pL, w: 0.2 }, { a: bR, b: pR, w: 0.2 }, { a: pL.clone().addScaledVector(R, -0.12), b: pR.clone().addScaledVector(R, 0.12), w: 0.16 }];
+        const lev = Math.max(1, Math.floor(Math.min(pL.y - bL.y, pR.y - bR.y) / 2.6)), ptsL = [], ptsR = [];
         for (let i = 1; i <= lev; i++) {
           const f0 = (i - 1) / lev, f1 = i / lev;
           const a0 = bL.clone().lerp(pL, f0), b0 = bR.clone().lerp(pR, f0), a1 = bL.clone().lerp(pL, f1), b1 = bR.clone().lerp(pR, f1);
-          bents.push({ a: a1, b: b1, w: 0.12 }); if (i % 2) bents.push({ a: a0, b: b1, w: 0.09 }); else bents.push({ a: b0, b: a1, w: 0.09 });
+          if (i < lev || lev === 1) { if (clr(a1, b1, 0.08, k)) local.push({ a: a1, b: b1, w: 0.12 }); }
+          const dg = i % 2 ? [a0, b1] : [b0, a1]; if (clr(dg[0], dg[1], 0.07, k)) local.push({ a: dg[0], b: dg[1], w: 0.09 });
           ptsL.push(a1); ptsR.push(b1);
         }
         // ledgers tie each bent to the previous one so the structure reads as a lattice, as on real wooden coasters
         if (prevBent && s - prevBent.s <= step * 1.5) {
           const n = Math.min(ptsL.length, prevBent.L.length);
-          for (let i = 0; i < n; i++) { if (i % 2 === 0 || i === n - 1) { bents.push({ a: prevBent.L[i], b: ptsL[i], w: 0.08 }, { a: prevBent.R[i], b: ptsR[i], w: 0.08 }); } }
-          if (Math.round(s / step) % 2 === 0 && n > 1) { bents.push({ a: prevBent.L[0], b: ptsL[Math.min(n - 1, 1)], w: 0.07 }, { a: prevBent.R[0], b: ptsR[Math.min(n - 1, 1)], w: 0.07 }); }
+          for (let i = 0; i < n; i++) if (i % 2 === 0 || i === n - 1) for (const [p0, p1] of [[prevBent.L[i], ptsL[i]], [prevBent.R[i], ptsR[i]]]) if (clr(p0, p1, 0.06, k)) local.push({ a: p0, b: p1, w: 0.08 });
+          if (Math.round(s / step) % 2 === 0 && n > 1) for (const [p0, p1] of [[prevBent.L[0], ptsL[Math.min(n - 1, 1)]], [prevBent.R[0], ptsR[Math.min(n - 1, 1)]]]) if (clr(p0, p1, 0.06, k)) local.push({ a: p0, b: p1, w: 0.07 });
         }
-        prevBent = { s, L: ptsL, R: ptsR };
-        if (h > 8 && (Math.round(s / 3) % 3 === 0)) { const a0 = bL.clone().lerp(pL, 0.5); bents.push({ a: a0, b: pL.clone().addScaledVector(T, 3), w: 0.1 }); }
+        bents.push(...local); prevBent = { s, L: ptsL, R: ptsR };
         foots.push(bL, bR);
         continue;
       }
+      prevBent = null;
       if (s - lastPlaced < steelStep) continue;
       side.set(R.x, 0, R.z); if (side.lengthSq() < 1e-3) side.set(-T.z, 0, T.x); side.normalize();
       const pref = Math.sign(spineDir.dot(side)) || 1;
       const cands = [];
       if (spineDir.y < -0.35) cands.push(0);
-      for (const d of [3.0, 4.4, 6, 8, 10.5]) cands.push(d * pref, -d * pref);
+      const hwB = (TRAIN.box || [1])[0];
+      for (const d of [3.0, 4.4, 6, 8, 10.5]) if (d > hwB + 0.6) cands.push(d * pref, -d * pref);
+      if (hwB > 2.2) cands.push(13 * pref, -13 * pref);
       let ok = null;
       for (const off of cands) {
         C.copy(A).addScaledVector(side, off);
@@ -256,8 +274,8 @@ function createTrackGfx(THREE, ctx) {
         Ct.set(C.x, topY, C.z);
         if (topY - g < 0.6) continue;
         const base = new V3(C.x, g - 0.3, C.z);
-        if (!segClear(grid, base, Ct, 0.35, off === 0 ? k : null)) continue;
-        if (off !== 0 && !segClear(grid, Ct, A, 0.25, k)) continue;
+        if (!clr(base, Ct, 0.35, off === 0 ? k : null)) continue;
+        if (off !== 0 && !clr(Ct, A, 0.25, k)) continue;
         ok = { base, top: Ct.clone(), off, h: topY - g }; break;
       }
       if (!ok) continue;
@@ -265,11 +283,18 @@ function createTrackGfx(THREE, ctx) {
       const r = 0.26 + Math.min(0.32, ok.h * 0.0034);
       if (ok.off === 0 && ok.h > 24 && spineDir.y < -0.8) {
         const spread = ok.h * 0.17, legs = [];
-        for (const sg of [-1, 1]) { const b = ok.base.clone().addScaledVector(side, spread * sg); b.y = ctx.terrainHeight(b.x, b.z) - 0.3; if (segClear(grid, b, ok.top, 0.3, k)) legs.push(b); }
-        if (legs.length === 2) { for (const b of legs) { cols.push([b, ok.top.clone(), r * 0.85]); foots.push(b); } arms.push([legs[0].clone().lerp(ok.top, 0.45), legs[1].clone().lerp(ok.top, 0.45), r * 0.5]); continue; }
+        for (const sg of [-1, 1]) { const b = ok.base.clone().addScaledVector(side, spread * sg); b.y = ctx.terrainHeight(b.x, b.z) - 0.3; if (clr(b, ok.top, 0.3, k)) legs.push(b); }
+        if (legs.length === 2) {
+          for (const b of legs) { cols.push([b, ok.top.clone(), r * 0.85]); foots.push(b); }
+          const m0 = legs[0].clone().lerp(ok.top, 0.45), m1 = legs[1].clone().lerp(ok.top, 0.45); if (clr(m0, m1, r * 0.5, k)) arms.push([m0, m1, r * 0.5]);
+          continue;
+        }
       }
       cols.push([ok.base, ok.top, r]); foots.push(ok.base);
-      if (ok.off !== 0) { arms.push([ok.top.clone(), A.clone(), r * 0.8]); if (ok.h > 10) arms.push([ok.base.clone().lerp(ok.top, 0.72), A.clone().lerp(ok.top, 0.2), r * 0.5]); }
+      if (ok.off !== 0) {
+        arms.push([ok.top.clone(), A.clone(), r * 0.8]);
+        if (ok.h > 10) { const b0 = ok.base.clone().lerp(ok.top, 0.72), b1 = A.clone().lerp(ok.top, 0.2); if (clr(b0, b1, r * 0.5, k)) arms.push([b0, b1, r * 0.5]); }
+      }
     }
     const cyl = new THREE.CylinderGeometry(1, 1, 1, (style === 'box' ? 4 : ctx.Q().railSeg + 2), 1); cyl.translate(0, 0.5, 0); if (style === 'box') cyl.rotateY(Math.PI / 4);
     const setCyl = ([a, b, r], m) => { const d = v4.subVectors(b, a); const len = d.length(); tq.setFromUnitVectors(up, d.normalize()); m.compose(a, tq, v1.set(r, len, r)); };
@@ -279,22 +304,30 @@ function createTrackGfx(THREE, ctx) {
   }
 
   // ---------- catwalks on lifts, launches and brake runs ----------
+  // The walkway sits outside the train's swept box, with brackets running under it back to the spine and the
+  // handrail always on the side away from the track.
   function buildCatwalks(t, below) {
     const sel = ty => isLiftCode(ty) || ty === T_BLOCK || ty === T_BRAKES || ty === T_LAUNCH;
     const runs = runsOf(t, sel, t.nm); if (!runs.length) return;
-    const sp = below ? 1 : -1, sideOff = 1.15, w = 0.8;
-    const g = ribbon(t, runs, k => {
-      const cx = t.px[k] + t.rx[k] * sideOff + t.ux[k] * sp * 0.25, cy = t.py[k] + t.ry[k] * sideOff + t.uy[k] * sp * 0.25, cz = t.pz[k] + t.rz[k] * sideOff + t.uz[k] * sp * 0.25;
-      return [[cx - t.rx[k] * w / 2, cy - t.ry[k] * w / 2, cz - t.rz[k] * w / 2], [cx + t.rx[k] * w / 2, cy + t.ry[k] * w / 2, cz + t.rz[k] * w / 2], [t.ux[k], t.uy[k], t.uz[k]]];
-    }, 1);
+    const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2];
+    const sp = below ? 1 : -1, w = 0.8, sideOff = Math.max(1.15, hw + 0.15 + w / 2);
+    const deckU = below ? Math.max(0.25, u1 + 0.1) : Math.min(-0.25, u0 - 0.12), spineU = sp * (STYLE_DEPTH[ctx.design().track] || 0.9) * 0.7;
+    const at = (k, lat, u) => [t.px[k] + t.rx[k] * lat + t.ux[k] * u, t.py[k] + t.ry[k] * lat + t.uy[k] * u, t.pz[k] + t.rz[k] * lat + t.uz[k] * u];
+    const g = ribbon(t, runs, k => { const a = at(k, sideOff - w / 2, deckU), b = at(k, sideOff + w / 2, deckU); return [a, b, [t.ux[k], t.uy[k], t.uz[k]]]; }, 1);
     addMesh(g, mats.grate, true, true);
+    const railLat = sideOff + w / 2 + 0.05;
     for (const [a, b] of runs) {
-      addMesh(tubeGeometry(t, sideOff + w / 2 + 0.05, sp * 0.25 - sp * 1.0, 0.035, 5, a, b + 1), mats.support, false);
-      addMesh(tubeGeometry(t, sideOff + w / 2 + 0.05, sp * 0.25 - sp * 0.5, 0.025, 5, a, b + 1), mats.support, false);
-      const posts = []; for (let k = a; k <= b; k += 4) posts.push(k);
+      addMesh(tubeGeometry(t, railLat, deckU + 1.0, 0.035, 5, a, b + 1), mats.support, false);
+      addMesh(tubeGeometry(t, railLat, deckU + 0.5, 0.025, 5, a, b + 1), mats.support, false);
+      const posts = [], brackets = []; for (let k = a; k <= b; k += 4) { posts.push(k); if ((k - a) % 8 === 0) brackets.push(k); }
       instances(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 5).translate(0, 0.5, 0), mats.support, posts, (k, m) => {
-        const x = t.px[k] + t.rx[k] * (sideOff + w / 2 + 0.05) + t.ux[k] * sp * 0.25, y = t.py[k] + t.ry[k] * (sideOff + w / 2 + 0.05) + t.uy[k] * sp * 0.25, z = t.pz[k] + t.rz[k] * (sideOff + w / 2 + 0.05) + t.uz[k] * sp * 0.25;
-        v1.set(t.ux[k] * -sp, t.uy[k] * -sp, t.uz[k] * -sp); tq.setFromUnitVectors(up, v1); m.compose(v2.set(x, y, z), tq, v3.set(1, 1, 1));
+        const p = at(k, railLat, deckU); v1.set(t.ux[k], t.uy[k], t.uz[k]); tq.setFromUnitVectors(up, v1); m.compose(v2.set(p[0], p[1], p[2]), tq, v3.set(1, 1, 1));
+      }, false);
+      // brackets from the spine out under the walkway
+      instances(new THREE.BoxGeometry(1, 1, 1).translate(0, 0, 0.5), mats.support, brackets, (k, m) => {
+        const p0 = at(k, 0, spineU), p1 = at(k, sideOff + w / 2, deckU - sp * -0.06 - 0.06);
+        const A0 = v2.set(p0[0], p0[1], p0[2]), A1 = v3.set(p1[0], p1[1], p1[2]); const len = A0.distanceTo(A1);
+        m.lookAt(A1, A0, v4.set(t.ux[k], t.uy[k], t.uz[k])); m.scale(v1.set(0.07, 0.1, len)); m.setPosition(A0);
       }, false);
     }
   }
@@ -336,7 +369,7 @@ function createTrackGfx(THREE, ctx) {
     const deck = below ? (TRAIN.hl - 1.15) : -0.35;                 // platform at the riders' feet
     const under = gy - P.y;
     const mk = (geo, mat, x, y, z, cs = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cs; m.receiveShadow = true; g.add(m); return m; };
-    const wide = TRAIN.envR > 2.2 ? 1.6 : 0;
+    const wide = Math.max(0, (TRAIN.box ? TRAIN.box[0] : 1) + 0.15 - 0.85);   // push platforms and gates out for wide trains
     mk(new THREE.BoxGeometry(3.4, 0.45, len), mats.concrete, -2.55 - wide, deck - 0.22, 0);
     mk(new THREE.BoxGeometry(2.2, 0.45, len), mats.concrete, 1.95 + wide, deck - 0.22, 0);
     const colH = Math.max(0.3, deck - 0.45 - under);

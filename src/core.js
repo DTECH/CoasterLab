@@ -27,7 +27,7 @@ const LAUNCH_SYS = {
   pneumatic: { label: 'Pneumatic (compressed air)', short: 'Pneumatic', acc: 2.4 * G }
 };
 // The active train: set from the train designer. hl = heartline height above the rails (negative when riders hang below).
-const TRAIN = { cars: 6, carLen: 2.6, massPerCar: 1150, hl: 1.1, envOff: 1.0, envR: 1.7, prone: false };
+const TRAIN = { cars: 6, carLen: 2.6, massPerCar: 1150, hl: 1.1, envOff: 1.0, envR: 1.7, prone: false, box: [0.95, -0.35, 2.05] };
 function setTrainSpec(spec) { Object.assign(TRAIN, spec || {}); TRAIN.len = TRAIN.cars * TRAIN.carLen; TRAIN.mass = TRAIN.cars * TRAIN.massPerCar; }
 setTrainSpec();
 const PHYS = { mu: 0.0105, drag: 0.00024, brakeDecel: 6.0, trimSpeed: 7.5, stationSpeed: 2.4, transferSpeed: 6.0, stationDecel: 1.8, loadTime: 3.2, blockRelease: 2.6 };
