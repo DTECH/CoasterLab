@@ -66,7 +66,7 @@ function trainSpecFor(d) {
   const rows = clamp(d.rows || tt.rows, 1, 3), cars = clamp(d.cars || tt.cars, 1, 10);
   const carLen = Math.max(1.8, rows * tt.rowPitch + 0.5);
   const seats = d.seats || tt.seats;
-  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone, box: envBoxFor(d.train, seats) };
+  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone, spin: !!(tt.spin || tt.spinSeats), box: envBoxFor(d.train, seats) };
 }
 
 const SCENERY = {

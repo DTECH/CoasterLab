@@ -134,6 +134,10 @@ const ELEMENTS = [
   { key: 'invtophat', cat: 'inversions', dir: true, label: 'Inverted top hat', tip: 'Twist inverted on the vertical climb, cross the top upside down, twist out on the way down', gen: (t, c) => genTopHat(t, c, true) },
   { key: 'pretzel', cat: 'inversions', label: 'Pretzel loop', tip: 'Loop entered from the top: dive down, round the bottom, climb back. Built for flying coasters, where riders lie on their backs through it', gen: (t, c) => genPretzel(t, c) },
   { key: 'nonloop', cat: 'inversions', dir: true, label: 'Non-inverting loop', tip: 'Loop that twists on the way up so riders stay upright at the top', gen: (t, c) => genNonInvLoop(t, c) },
+  // ---- tunnels
+  { key: 'covered', cat: 'tunnels', label: 'Covered tunnel', tip: 'A 70 m enclosed section above ground (timber, corrugated metal or futuristic frame)', gen: t => { for (let i = 1; i <= 3; i++) t.to(t.x + 24, t.y, { tunnel: true }); t.to(t.x + 6, t.y, { tunnel: false }); } },
+  { key: 'underdive', cat: 'tunnels', label: 'Underground dive', tip: 'Plunge below ground into a bored tunnel and climb back out', gen: (t, c) => genUnderDive(t, c, 9) },
+  { key: 'opencut', cat: 'tunnels', label: 'Open-cut dip', tip: 'Dip the rails just below ground level through a walled trench', gen: (t, c) => genUnderDive(t, c, 0.6) },
   // ---- lifts & launches
   { key: 'chainlift', cat: 'power', label: 'Chain lift hill', tip: '35° chain lift to about 45 m', gen: (t, c) => genLift(t, c, 'chain', 35, 45) },
   { key: 'cablelift', cat: 'power', label: 'Cable lift hill', tip: '45° high-speed cable lift to about 70 m', gen: (t, c) => genLift(t, c, 'cable', 45, 70) },
@@ -151,7 +155,7 @@ const ELEMENTS = [
 const ELEMENT_BY_KEY = Object.fromEntries(ELEMENTS.map(e => [e.key, e]));
 // keys used by older saves and toolbar buttons
 ELEMENT_BY_KEY.bankleft = { ...ELEMENT_BY_KEY.bank, forceDir: -1 }; ELEMENT_BY_KEY.bankright = { ...ELEMENT_BY_KEY.bank, forceDir: 1 };
-const ELEMENT_CATS = [['hills', 'Hills & drops'], ['turns', 'Turns'], ['inversions', 'Inversions'], ['power', 'Lifts & launches'], ['brakes', 'Brakes']];
+const ELEMENT_CATS = [['hills', 'Hills & drops'], ['turns', 'Turns'], ['inversions', 'Inversions'], ['tunnels', 'Tunnels'], ['power', 'Lifts & launches'], ['brakes', 'Brakes']];
 
 function genVDrop(t, c, angle, hold) {
   const D = clamp(c.y0 - 4, 0, 400);
@@ -229,6 +233,16 @@ function genCobra(t, c, d1, d2) {
   for (let i = 1; i <= 7; i++) { const u = i / 7; t.to(x0 + 2 * Lh * u, yt - dz * Math.sin(Math.PI * u), { yaw: i < 7 ? rnd2((i <= 3 ? d1 : d2) * d * 30) : 0, roll: normDeg(R0 + 360 * d * u), align: i < 7 }); }
   t.th = 0;
   halfLoopDown(t, c, y0); t.line(6, 1);
+}
+// dive to depth below ground level (absolute y = -depth), run level, and climb back to the entry height
+function genUnderDive(t, c, depth) {
+  const D = c.y0 + depth; if (D < 3) { t.fail = 'There is not enough height above ground here to dive under it.'; return; }
+  const vb = Math.sqrt(c.v * c.v + 2 * G * D * 0.92), kap = 2.6 * G / (vb * vb);
+  const W = Math.max(Math.PI * Math.sqrt(2 * D / Math.max(kap, 1e-4)), D * 3.2, 40), flat = depth > 2 ? 46 : 30, x0 = t.x, y0 = t.y;
+  for (const u of [0.12, 0.25, 0.37, 0.5]) t.to(x0 + W * u, y0 - D * (1 - Math.cos(2 * Math.PI * u)) / 2);
+  for (const f of [0.5, 1]) t.to(x0 + W * 0.5 + flat * f, y0 - D);
+  const x1 = t.x; for (const u of [0.5, 0.63, 0.75, 0.88, 1]) t.to(x1 + W * (u - 0.5), y0 - D * (1 - Math.cos(2 * Math.PI * u)) / 2);
+  t.th = 0;
 }
 function genDiveLoop(t, c) {
   // rising half roll to the height a half loop needs, then the half loop down to the entry height
@@ -346,6 +360,7 @@ function makeElement(kind, base, speedHint, dir = 1) {
   for (const p of t.pts) {
     const nd = { x: rnd2(base.x + p.x), y: rnd2(Math.max(0.5, base.y + p.y)), yaw: p.yaw || 0, roll: Math.round(normDeg(p.roll || 0)), type: p.type || 'steel' };
     if (p.flip) nd.flip = true;
+    if (p.tunnel) nd.tunnel = true;
     if (p.off) nd.off = p.off;
     if (p.lat) nd.lat = p.lat;
     for (const k of ['spd', 'sys', 'hold']) if (p[k] !== undefined) nd[k] = p[k];
@@ -471,6 +486,21 @@ const PRESET_DEFS = {
     P(218, 6, -35, A, 'steel', { tunnel: true }), P(236, 5.6, -35, A, 'steel', { tunnel: true }), P(256, 5.2), P(272, 7.2), P(288, 7.6), P(304, 5.4),
     P(322, 5, 45, A), P(342, 4.8, 45, A), P(362, 4.7, 45, A), P(382, 4.6, 45, A), P(402, 4.6),
     P(420, 4.5, 0, 0, 'brakes'), P(442, 4.5, 0, 0, 'brakes') ] }),
+  lake: () => { const L3 = 84.5, L2 = 271, T = { tunnel: true },
+      W = { tun: { shell: 'acrylic', light: 'work', spray: true, echo: true, sfx: 'monster' } },
+      C = { tunnel: true, tun: { style: 'metal', light: 'neon', fog: true, echo: true, sfx: 'scifi' } };
+    // straight drop into the lake: the track runs along the lake bed in an acrylic tube, climbs out through an underground
+    // bore and an open cut, then threads a covered tunnel and a pair of airtime hills on the way home
+    const n = [P(0, 4, 0, 0, 'station'), P(26, 4, 0, 0, 'station'), P(38, 4.4), P(52, 10, 0, 0, 'chain'), P(98, 46, 0, 0, 'chain'), P(108, 48, 0, 0, 'chain'), P(118, 48),
+      P(132, 45, -30, A), P(150, 32, -30, A), P(168, 18, -30, A), P(188, 8),
+      P(210, 3.5), P(240, -2, 0, 0, 'steel', W), P(270, -4.6, 0, 0, 'steel', W), P(300, -5), P(420, -5), P(520, -5), P(550, -3), P(580, 2), P(610, 7), P(640, 9.5),
+      P(660, 9.5, -45, A), P(680, 9.3, -45, A), P(700, 9), P(720 + L3, 8),
+      P(745 + L3, 7, 0, 0, 'steel', C), P(775 + L3, 7, 0, 0, 'steel', C), P(805 + L3, 7, 0, 0, 'steel', C), P(830 + L3, 6.5),
+      P(850 + L3, 6, -45, A), P(872 + L3, 5.5, -45, A), P(894 + L3, 5.2),
+      P(920 + L3, 5), P(948 + L3, 12), P(976 + L3, 6.5), P(1002 + L3, 10), P(1020 + L3, 5.2),
+      P(1045 + L3 + L2 * 0.2, 5), P(1045 + L3 + L2 * 0.35, 13), P(1045 + L3 + L2 * 0.5, 5.5), P(1045 + L3 + L2 * 0.62, 5, 0, 0, 'tires', { spd: 40 }), P(1060 + L3 + L2, 5, 0, 0, 'tires', { spd: 40 }), P(1080 + L3 + L2, 5),
+      P(1100 + L3 + L2, 5, -45, A), P(1122 + L3 + L2, 5, -45, A), P(1144 + L3 + L2, 4.8), P(1170 + L3 + L2, 4.6, 0, 0, 'brakes'), P(1200 + L3 + L2, 4.5, 0, 0, 'brakes')];
+    return { name: 'Lake Tunnel Express', closed: true, style: { train: 'hyper', track: 'tubular', supports: 'steel', paint: 1 }, nodes: n }; },
   blank: () => ({ name: 'Blank Slate (3 Nodes)', closed: false, nodes: [P(0, 4, 0, 0, 'station'), P(30, 4, 0, 0, 'station'), P(60, 4)] })
 };
 function resolvePreset(key) {
@@ -482,7 +512,7 @@ function resolvePreset(key) {
   }
   return { name: def.name, closed: def.closed, style: def.style || null, nodes };
 }
-const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'blank'];
+const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'lake', 'blank'];
 const PRESETS = {};
 function getPreset(key) { return PRESETS[key] || (PRESETS[key] = resolvePreset(key)); }
 // ===================== END ELEMENTS =====================

@@ -58,7 +58,7 @@
   let t3d = 0, tVeg = 0, live3dAt = 0;
   function schedule3D(opts = {}) {
     if (!glOK) return; clearTimeout(t3d); clearTimeout(tVeg);
-    t3d = setTimeout(() => { World.setTrack(trk, { vegetation: false, count: trains.length, trains: opts.trains !== false }); tVeg = setTimeout(() => World.rescatter(trk), 650); }, 20);
+    t3d = setTimeout(() => { World.setTrack(trk, { vegetation: false, count: trains.length, trains: opts.trains !== false }); if (trk.tunnels && trk.tunnels.length) { refreshCheck(); refreshTunnel(); } tVeg = setTimeout(() => World.rescatter(trk), 650); }, 20);
   }
   function commit(opts = {}) { rebuild(true, opts); boardDirty = true; refreshInspector(); refreshCheck(); autosave(); schedule3D(); }
   function liveUpdate() {
@@ -106,13 +106,14 @@
   function fitBoard() {
     if (!trk) return; const rr = stage.getBoundingClientRect(); if (rr.width > 10) { BV.w = rr.width; BV.h = rr.height; }
     if (S.cam === 'top') return fitTop();
-    let x0 = 1e9, x1 = -1e9, y1 = 12;
-    for (let k = 0; k < trk.nm; k += 2) { x0 = Math.min(x0, trk.profX[k]); x1 = Math.max(x1, trk.profX[k]); y1 = Math.max(y1, trk.profY[k]); }
+    let x0 = 1e9, x1 = -1e9, y1 = 12, y0 = 0;
+    for (let k = 0; k < trk.nm; k += 2) { x0 = Math.min(x0, trk.profX[k]); x1 = Math.max(x1, trk.profX[k]); y1 = Math.max(y1, trk.profY[k]); y0 = Math.min(y0, trk.profY[k] - 1, trk.ground ? trk.ground[k] : 0); }
+    y0 = Math.max(y0, -45);
     const padL = 54, padR = 28, padT = 86, padB = 60;
-    const sw = (BV.w - padL - padR) / Math.max(30, x1 - x0), sh = (BV.h - padT - padB) / (y1 * S.vex + 4);
+    const sw = (BV.w - padL - padR) / Math.max(30, x1 - x0), sh = (BV.h - padT - padB) / ((y1 - y0) * S.vex + 4);
     BV.sc = clamp(Math.min(sw, sh), 0.02, 40);
     BV.ox = padL - x0 * BV.sc + Math.max(0, ((BV.w - padL - padR) - (x1 - x0) * BV.sc) / 2);
-    BV.oy = Math.min(BV.h - padB, padT + (BV.h - padT - padB) / 2 + (y1 * S.vex * BV.sc) / 2 + 10);
+    BV.oy = Math.min(BV.h - padB + y0 * S.vex * BV.sc, padT + (BV.h - padT - padB) / 2 + ((y1 + y0) / 2 * S.vex * BV.sc) + 10);
     boardDirty = true;
   }
   function fitTop() {
@@ -145,8 +146,22 @@
     for (let x = xa; x <= xb; x += stepX) { const X = Math.round(sx(x)) + 0.5; const major = Math.round(x / stepX) % 5 === 0; g.strokeStyle = major ? COL.grid2 : COL.grid; g.beginPath(); g.moveTo(X, 0); g.lineTo(X, BV.h); g.stroke(); }
     const yTop = fromScreen(0, 0)[1];
     for (let y = 0; y <= yTop; y += stepY) { const Y = Math.round(sy(y)) + 0.5; const major = Math.round(y / stepY) % 5 === 0; g.strokeStyle = major ? COL.grid2 : COL.grid; g.beginPath(); g.moveTo(0, Y); g.lineTo(BV.w, Y); g.stroke(); }
-    const gy = sy(0); g.fillStyle = 'rgba(28,46,30,0.55)'; g.fillRect(0, gy, BV.w, BV.h - gy);
-    g.strokeStyle = '#3c5a3a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, gy); g.lineTo(BV.w, gy); g.stroke();
+    const gy = sy(0);
+    // the ground (and any water) under the track, as the 3D world reports it
+    const gnd = trk.ground, last = trk.nm - 1;
+    if (gnd) {
+      g.beginPath(); g.moveTo(0, BV.h); g.lineTo(0, sy(gnd[0])); for (let k = 0; k <= last; k += 2) g.lineTo(sx(trk.profX[k]), sy(gnd[k]));
+      g.lineTo(sx(trk.profX[last]), sy(gnd[last])); g.lineTo(BV.w, sy(gnd[last])); g.lineTo(BV.w, BV.h); g.closePath();
+      g.fillStyle = 'rgba(28,46,30,0.55)'; g.fill();
+      g.strokeStyle = '#3c5a3a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, sy(gnd[0])); for (let k = 0; k <= last; k += 2) g.lineTo(sx(trk.profX[k]), sy(gnd[k])); g.lineTo(BV.w, sy(gnd[last])); g.stroke();
+      const wy = trk.waterY; let k = 0;
+      while (k <= last) {
+        if (isNaN(wy[k])) { k++; continue; } let e = k; while (e < last && !isNaN(wy[e + 1])) e++;
+        g.beginPath(); for (let q = k; q <= e; q++) g.lineTo(sx(trk.profX[q]), sy(wy[q])); for (let q = e; q >= k; q--) g.lineTo(sx(trk.profX[q]), sy(gnd[q])); g.closePath();
+        g.fillStyle = 'rgba(40,140,190,0.32)'; g.fill(); g.strokeStyle = 'rgba(110,200,240,0.8)'; g.lineWidth = 1.2; g.beginPath(); for (let q = k; q <= e; q++) g.lineTo(sx(trk.profX[q]), sy(wy[q])); g.stroke();
+        k = e + 1;
+      }
+    } else { g.fillStyle = 'rgba(28,46,30,0.55)'; g.fillRect(0, gy, BV.w, BV.h - gy); }
     g.fillStyle = COL.faint; g.textAlign = 'center';
     for (let x = xa; x <= xb; x += stepX) if (x >= 0) g.fillText(Math.round(x) + ' m', sx(x), gy + 14);
     g.textAlign = 'left';
@@ -154,9 +169,7 @@
     const st0 = sx(S.nodes[0].x), st1 = sx(trk.profX[Math.min(trk.nm - 1, Math.round(trk.stationEnd / DS))]);
     g.fillStyle = 'rgba(127,143,160,0.10)'; g.fillRect(Math.min(st0, st1), 0, Math.abs(st1 - st0), gy);
     g.fillStyle = COL.faint; g.fillText('STATION', Math.min(st0, st1) + 4, 14);
-    // tunnels
-    g.fillStyle = 'rgba(120,110,95,0.18)';
-    for (let k = 0; k < trk.nm; k++) if (trk.tunnel[k]) { const X = sx(trk.profX[k]); g.fillRect(X - 1, sy(trk.profY[k] + 3), 2.5, sy(trk.profY[k] - 2) - sy(trk.profY[k] + 3)); }
+    drawTunnelsSide(g);
     g.strokeStyle = 'rgba(160,175,190,0.16)'; g.lineWidth = 1; g.beginPath();
     for (let k = 4; k < trk.nm; k += 20) if (trk.uy[k] > 0.55 && trk.type[k] !== T_STATION) { const X = sx(trk.profX[k]), Y = sy(trk.profY[k] - 0.8); g.moveTo(X, Y); g.lineTo(X, gy); }
     g.stroke();
@@ -209,6 +222,37 @@
       g.fillStyle = COL.signal; g.beginPath(); g.arc(sx(trk.profX[kk]), sy(trk.profY[kk]), 5, 0, 7); g.fill();
     }
   }
+  // tunnels in the side view: a shell drawn around the riders' clearance circle, coloured by kind, with the portals
+  const TUN_COL = ['', '201,160,99', '160,150,138', '64,196,230', '150,175,95'];
+  function selTunnel() { if (!trk || !trk.tunnels) return null; return trk.tunnels.find(t => t.nodes.includes(S.sel)) || null; }
+  function drawTunnelsSide(g) {
+    if (!trk.tunRuns) return; const env = trk.tunEnv, sel = selTunnel();
+    for (const r of trk.tunRuns) {
+      if (r.a >= trk.nm) continue; const b = Math.min(r.b, trk.nm - 1), col = TUN_COL[r.kind];
+      const tn = trk.tunnels.find(t => r.a >= t.a && r.a <= t.b), hot = tn && tn === sel;
+      const top = k => trk.profY[k] + env.uc + (tn ? tn.rout : env.rc + 0.5), bot = k => trk.profY[k] - 0.9;
+      g.beginPath(); for (let k = r.a; k <= b; k++) g.lineTo(sx(trk.profX[k]), sy(top(k))); for (let k = b; k >= r.a; k--) g.lineTo(sx(trk.profX[k]), sy(bot(k))); g.closePath();
+      g.fillStyle = `rgba(${col},${r.kind === TUN.TRENCH ? 0.1 : hot ? 0.34 : 0.2})`; g.fill();
+      g.strokeStyle = `rgba(${col},${hot ? 1 : 0.7})`; g.lineWidth = hot ? 2 : 1.3; if (r.kind === TUN.TRENCH) g.setLineDash([4, 4]);
+      g.beginPath(); for (let k = r.a; k <= b; k++) g.lineTo(sx(trk.profX[k]), sy(top(k))); g.stroke(); g.setLineDash([]);
+      const m = Math.round((r.a + b) / 2), w = sx(trk.profX[b]) - sx(trk.profX[r.a]);
+      if (w > 70) { g.fillStyle = `rgba(${col},0.95)`; g.textAlign = 'center'; g.fillText(`${TUN_NAME[r.kind]} ${Math.round((b - r.a + 1) * DS)} m`, sx(trk.profX[m]), sy(top(m)) - 9); }
+    }
+    for (const tn of trk.tunnels) for (const p of tn.portals) {
+      const k = Math.min(trk.nm - 1, Math.round(p.s / DS)); if (p.inner || p.s > trk.Lm) continue;
+      const X = sx(trk.profX[k]), y0 = sy(trk.profY[k] - 1.2), y1 = sy(trk.profY[k] + env.uc + tn.rout + 0.8);
+      g.strokeStyle = `rgba(${TUN_COL[p.kind]},1)`; g.lineWidth = 4; g.beginPath(); g.moveTo(X, y0); g.lineTo(X, y1); g.stroke();
+    }
+  }
+  // water seen from above, sampled once per track/scenery around the layout
+  let waterCache = null;
+  function waterGrid() {
+    if (!trk || !World || !World.probe) return null; const b = trk.bounds, key = [Math.round(b.x0), Math.round(b.x1), Math.round(b.z0), Math.round(b.z1), World.env.scenery].join();
+    if (waterCache && waterCache.key === key) return waterCache;
+    const st = 4, x0 = b.x0 - 120, z0 = b.z0 - 120, nx = Math.ceil((b.x1 - b.x0 + 240) / st), nz = Math.ceil((b.z1 - b.z0 + 240) / st), cells = [];
+    if (nx * nz < 60000) for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const x = x0 + i * st, z = z0 + j * st; if (World.probe.water(x, z) != null) cells.push(x, z); }
+    return (waterCache = { key, cells, st });
+  }
   function nodeDot(g, X, Y, nr, sel, n, i) {
     const tc = { station: '#8b9aab', chain: '#e3e8ec', cable: '#e3e8ec', tirelift: '#e3e8ec', launch: '#ff9f43', tires: '#c7b26a', trim: '#d39a52', block: '#e07b3c', brakes: '#d39a52' }[n.type] || COL.vg;
     g.beginPath(); g.arc(X, Y, sel ? nr + 2.5 : nr, 0, Math.PI * 2);
@@ -243,6 +287,10 @@
       const mk = trk.nm + Math.floor((trk.n - trk.nm) / 2); g.fillStyle = COL.muted; g.textAlign = 'center'; g.fillText('return transfer ' + Math.round((trk.n - trk.nm) * DS) + ' m', tx(trk.px[mk]), tz(trk.pz[mk]) - 12);
       const lastX = tx(trk.px[trk.n - 1]), lastY = tz(trk.pz[trk.n - 1]); g.beginPath(); g.moveTo(lastX, lastY); g.lineTo(tx(trk.px[0]), tz(trk.pz[0])); g.stroke();
     }
+    const wg = waterGrid(); if (wg && wg.cells.length) { g.fillStyle = 'rgba(40,140,190,0.22)'; const c = wg.cells, w = wg.st * TV.sc + 0.6; for (let i = 0; i < c.length; i += 2) g.fillRect(tx(c[i]) - w / 2, tz(c[i + 1]) - w / 2, w, w); }
+    if (trk.tunRuns) { const sel = selTunnel();
+      for (const r of trk.tunRuns) { const tn = trk.tunnels.find(t => r.a >= t.a && r.a <= t.b), hot = tn && tn === sel; if (r.kind === TUN.TRENCH) g.setLineDash([5, 4]);
+        drawPath(r.a, Math.min(r.b, trk.n - 1), Math.max(10, (tn ? tn.rout * 2 : 5) * TV.sc), `rgba(${TUN_COL[r.kind]},${hot ? 0.55 : 0.32})`); g.setLineDash([]); } }
     drawPath(0, trk.nm - 1, 7, 'rgba(0,0,0,0.55)');
     // draw lower sections first so overpasses read correctly
     const segs = []; for (let k = 0; k < trk.nm - 1; k += 2) segs.push(k);
@@ -302,6 +350,17 @@
     else S.nodes.forEach((n, i) => { const d = (sx(n.x) - px) ** 2 + (sy(n.y) - py) ** 2; if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  // a press on a tunnel's band in either editor selects it and shows its properties
+  function tunnelHit(px, py) {
+    if (!trk || !trk.tunnels || !trk.tunnels.length) return null; let best = null, bd = 1e9;
+    for (const tn of trk.tunnels) for (let k = tn.a; k <= Math.min(tn.b, trk.nm - 1); k += 2) {
+      let d;
+      if (S.cam === 'top') d = Math.hypot(tx(trk.px[k]) - px, tz(trk.pz[k]) - py) - Math.max(5, tn.rout * TV.sc);
+      else { const X = sx(trk.profX[k]), y0 = sy(trk.profY[k] - 1), y1 = sy(trk.profY[k] + trk.tunEnv.uc + tn.rout); d = Math.abs(X - px) + (py < y1 ? y1 - py : py > y0 ? py - y0 : 0) - 3; }
+      if (d < bd) { bd = d; best = tn; }
+    }
+    return bd < 6 ? best : null;
+  }
   function localXY(e) { const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
   stage.addEventListener('pointerdown', e => {
     if (e.target.closest('.ov') && e.target.closest('.ov') !== mini) return;
@@ -313,6 +372,7 @@
       if (hit >= 0) { selectNode(hit); if (S.mode === 'build') drag = { kind: S.cam === 'top' ? 'bend' : 'node', i: hit, moved: false }; else drag = { kind: 'pan', x, y }; }
       else {
         const now = performance.now();
+        const tn = tunnelHit(x, y); if (tn) { const ns = [...tn.nodes].sort((p, q) => p - q); selectNode(ns.find(i => i > 0) ?? ns[0]); if (innerWidth > 1100) $('tunSec').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
         if (S.cam === 'side' && S.mode === 'build' && e.pointerType !== 'mouse' && now - lastTap.t < 330 && Math.hypot(x - lastTap.x, y - lastTap.y) < 28) { insertNodeAt(x, y); lastTap.t = 0; drag = null; return; }
         lastTap = { t: now, x, y }; drag = { kind: 'pan', x, y };
       }
@@ -480,6 +540,7 @@
       $('fSysRow').hidden = n.type !== 'launch'; $('fSys').value = n.sys || 'lsm';
       $('fHoldRow').hidden = n.type !== 'block'; $('fHold').value = n.hold || 0; $('fHoldn').value = n.hold || 0;
       $('fTunnel').checked = !!n.tunnel; $('fFlip').checked = !!n.flip;
+      refreshTunnel();
       $('nPrev').disabled = S.sel <= 0; $('nNext').disabled = S.sel >= S.nodes.length - 1; $('nDel').disabled = S.nodes.length <= 2;
     }
   }
@@ -500,6 +561,31 @@
   const holdApply = v => nodeEdit(n => { n.hold = clamp(+v, 0, 20); });
   $('fHold').onchange = () => holdApply($('fHold').value); $('fHold').oninput = () => { $('fHoldn').value = $('fHold').value; }; $('fHoldn').onchange = () => holdApply($('fHoldn').value);
   $('fTunnel').onchange = () => nodeEdit(n => { if ($('fTunnel').checked) n.tunnel = true; else delete n.tunnel; });
+  // ---------- tunnel properties: shown when the selected node's incoming segment lies in a tunnel ----------
+  function refreshTunnel() {
+    const tn = selTunnel(); $('tunSec').hidden = !tn; if (!tn) return; const P = tn.props;
+    const kinds = tn.kinds.map(k => `<i style="background:rgb(${TUN_COL[k]})"></i>${TUN_NAME[k]}`).join(' → ');
+    const ns = [...tn.nodes].sort((a, b) => a - b), entries = tn.portals.filter(p => !p.inner);
+    $('tunTag').textContent = `${Math.round(tn.len)} m`;
+    $('tunSum').innerHTML = `${kinds}<br>Portals at <b>${entries.map(p => Math.round(p.s) + ' m').join('</b> and <b>')}</b> · nodes #${ns[0]}–#${ns[ns.length - 1]}`;
+    const segSet = (id, v) => $(id).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    segSet('tunLight', P.light); segSet('tunStyle', P.style); segSet('tunShell', P.shell); segSet('tunFit', P.fit);
+    $('tunStyleRow').hidden = !tn.kinds.includes(TUN.ABOVE); $('tunShellRow').hidden = !tn.kinds.includes(TUN.WATER);
+    $('tunFog').checked = !!P.fog; $('tunSpray').checked = !!P.spray; $('tunDust').checked = !!P.dust; $('tunEcho').checked = P.echo !== false; $('tunSfx').value = P.sfx || 'none';
+    $('tunGap').textContent = `${(tn.gap != null && isFinite(tn.gap) ? tn.gap : tn.rin - trk.tunEnv.rc).toFixed(2)} m to reach`;
+    $('tunHint').textContent = tn.kinds.includes(TUN.WATER) || tn.kinds.includes(TUN.UNDER) ? 'Underground and underwater sections follow the terrain: lower the track below the ground or into the lake to make one. Settings apply to the whole tunnel.' : 'Settings apply to the whole tunnel. Untick “Covered tunnel” on its nodes to remove it.';
+    $('tunSec').querySelectorAll('button, input, select').forEach(el => el.disabled = S.mode === 'ride');
+  }
+  function tunEdit(fn, msg) {
+    if (S.mode === 'ride') return; const tn = selTunnel(); if (!tn) return;
+    pushHistory(); const P = { ...tn.props }; fn(P); const clean = cleanTun(P);
+    for (const i of tn.nodes) { const n = S.nodes[i]; if (!n) continue; if (clean) n.tun = { ...clean }; else delete n.tun; }
+    commit(); if (msg) toast(msg);
+  }
+  for (const [id, key] of [['tunLight', 'light'], ['tunStyle', 'style'], ['tunShell', 'shell'], ['tunFit', 'fit']])
+    $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) tunEdit(P => { P[key] = b.dataset.v; }); });
+  for (const [id, key] of [['tunFog', 'fog'], ['tunSpray', 'spray'], ['tunDust', 'dust'], ['tunEcho', 'echo']]) $(id).onchange = () => tunEdit(P => { P[key] = $(id).checked; });
+  $('tunSfx').onchange = () => tunEdit(P => { P.sfx = $('tunSfx').value; }, $('tunSfx').value !== 'none' ? 'The effect plays as the train enters the tunnel (sound on)' : null);
   $('fFlip').onchange = () => nodeEdit(n => { if ($('fFlip').checked) n.flip = true; else delete n.flip; });
   $('bAutoBank').onclick = () => { if (S.mode === 'ride') return; const n = S.nodes[S.sel]; if (!n.yaw) { toast('This node has no turn. Set a turn angle first.'); return; } pushHistory(); n.roll = autoBankFor(S.nodes, S.sel, trk, an); commit(); toast(`Banked to ${Math.abs(n.roll)}° for the predicted speed`); };
   $('bAlign').onclick = () => { if (S.mode === 'ride') return; pushHistory(); const l = S.nodes[S.nodes.length - 1]; l.y = S.nodes[0].y; S.sel = S.nodes.length - 1; commit(); toast('Final node levelled with the station'); };
@@ -518,7 +604,7 @@
       row('Lowest vertical G', `${lo.toFixed(2)} G`, lo < -1.5 ? 'bad' : lo < -0.8 ? 'warn' : 'good') + row('Peak lateral G', `${an.maxLG.toFixed(2)} G`, an.maxLG > 1.8 ? 'warn' : 'good') +
       row('Inversions', an.inversions) + row('Airtime', `${an.airtime.toFixed(1)} s`) + row('Ride time', `${Math.round(an.duration)} s`) +
       row('Block sections', S.closed ? `${blocks} · up to ${maxTrainsFor(trk)} train${maxTrainsFor(trk) > 1 ? 's' : ''}` : 'shuttle, 1 train') +
-      row('Track clashes', clear.conflicts.length, clear.conflicts.length ? 'bad' : 'good') + row('Crossovers', clear.crossings.length);
+      row('Track clashes', clear.conflicts.length, clear.conflicts.length ? 'bad' : 'good') + row('Crossovers', clear.crossings.length) + tunnelRows(row);
     let note = '';
     if (an.stallS != null) { let j = 0; for (let i = 0; i < trk.nodeS.length; i++) if (trk.nodeS[i] <= an.stallS) j = i; note = `<div class="note">The train runs out of energy near ${Math.round(an.stallS)} m (after node #${j}). Lower the hill ahead of it or add a lift or launch.</div>`; }
     else if (clear.conflicts.length) note = `<div class="note">Part of the track runs through another part. Bend it away in the Top view or raise one section above the other.</div>`;
@@ -526,6 +612,17 @@
     else note = `<div class="note ok">The train completes the ${S.closed ? 'circuit' : 'run'} with forces inside rider limits.</div>`;
     $('checkNote').innerHTML = note;
     $('clashList').innerHTML = clear.conflicts.slice(0, 5).map((c, i) => `<button class="clash" data-i="${i}">Clash at ${Math.round(c.s)} m and ${Math.round(c.s2)} m · ${c.d.toFixed(1)} m apart <b>Show</b></button>`).join('');
+  }
+  function tunnelRows(row) {
+    let out = ''; const R = an.ratings;
+    if (trk.tunnels && trk.tunnels.length) {
+      out += row('Tunnels', `${trk.tunnels.length} · ${Math.round(trk.tunnels.reduce((a, t) => a + t.len, 0))} m`);
+      const gap = Math.min(...trk.tunnels.map(t => t.gap != null && isFinite(t.gap) ? t.gap : t.rin - trk.tunEnv.rc));
+      if (isFinite(gap)) out += row('Tunnel wall clearance', `${gap.toFixed(2)} m`, gap < 0.05 ? 'bad' : gap < 0.25 ? 'warn' : 'good');
+    }
+    if (R) { const cls = v => v > 9 ? 'bad' : v > 7 ? 'warn' : '';
+      out += row('Excitement', `${R.excitement.toFixed(2)} · ${ratingLabel(R.excitement)}`) + row('Intensity', `${R.intensity.toFixed(2)} · ${ratingLabel(R.intensity)}`, cls(R.intensity)) + row('Nausea', `${R.nausea.toFixed(2)} · ${ratingLabel(R.nausea)}`, cls(R.nausea)); }
+    return out;
   }
   $('clashList').addEventListener('click', e => {
     const b = e.target.closest('.clash'); if (!b) return; const c = clear.conflicts[+b.dataset.i]; if (!c) return;
@@ -605,7 +702,7 @@
   function setMode(m) {
     S.mode = m; setPressed(['mBuild', 'mRide'], m === 'build' ? 'mBuild' : 'mRide');
     $('left').classList.toggle('locked', m === 'ride');
-    document.querySelectorAll('.elbtn, #inspector .editable input, #inspector .editable button, #inspector .editable select, #catTabs button, #dirRow button').forEach(el => el.disabled = m === 'ride');
+    document.querySelectorAll('.elbtn, #inspector .editable input, #inspector .editable button, #inspector .editable select, #tunSec input, #tunSec button, #tunSec select, #catTabs button, #dirRow button').forEach(el => el.disabled = m === 'ride');
     if (m === 'ride') { resetTrains(); trains.forEach(t => { if (t.phase === 'load') t.timer = 1.0; }); setPlaying(true); if (isBoard() && glOK) setCam('pov'); toast('Ride mode: editing locked'); }
     updUndo(); refreshInspector(); boardDirty = true;
   }
@@ -706,9 +803,11 @@
     S.env[g] = k; refreshScenerySheet(); savePrefs();
     if (g === 'weather') { const w = WEATHER[k]; Sound.setWeather(w.precip, w.wind); }
     if (!glOK) return;
-    if (g === 'scenery') { $('loading').hidden = false; $('loadS').textContent = 'Growing the ' + SCENERY[k].label.toLowerCase(); setTimeout(() => { World.setEnvironment({ [g]: k }); $('loading').hidden = true; }, 40); }
+    if (g === 'scenery') { $('loading').hidden = false; $('loadS').textContent = 'Growing the ' + SCENERY[k].label.toLowerCase(); setTimeout(() => { World.setEnvironment({ [g]: k }, { retrack: false }); retrackTerrain(); $('loading').hidden = true; }, 40); }
     else World.setEnvironment({ [g]: k });
   }));
+  // tunnels depend on the terrain and water, so a new landscape reclassifies the track and rebuilds it in 3D
+  function retrackTerrain() { rebuild(true); boardDirty = true; needFit = true; refreshInspector(); refreshCheck(); if (glOK) World.setTrack(trk, { count: trains.length }); }
   $('bScenery').onclick = () => openSheet('scenerySheet'); $('sClose').onclick = $('sDone').onclick = () => { $('scenerySheet').hidden = true; };
 
   // ---------- save / share ----------
@@ -761,6 +860,7 @@
       const q = { x: clamp(+n.x, LIMITS.x[0], LIMITS.x[1]), y: clamp(+n.y, LIMITS.y[0], LIMITS.y[1]), yaw: clamp(+n.yaw || 0, LIMITS.yaw[0], LIMITS.yaw[1]), roll: normDeg(+n.roll || 0), type: SEG_BY_KEY[n.type] ? n.type : 'steel' };
       for (const k of ['lat', 'off', 'spd', 'hold']) if (n[k] != null && isFinite(+n[k])) q[k] = +n[k];
       if (n.flip) q.flip = true; if (n.tunnel) q.tunnel = true; if (n.sys && LAUNCH_SYS[n.sys]) q.sys = n.sys;
+      const tun = cleanTun(n.tun); if (tun) q.tun = tun;
       nodes.push(q); }
     return nodes;
   }
@@ -770,7 +870,7 @@
     if (S.mode === 'ride') setMode('build');
     pushHistory(); S.nodes = nodes; S.closed = o.closed != null ? !!o.closed : S.closed; S.name = o.name || 'Imported coaster'; S.sel = Math.min(1, nodes.length - 1);
     if (o.design && TRAIN_TYPES[o.design.train]) S.design = { ...defaultDesign(o.design.train), ...o.design, colors: { ...defaultDesign(o.design.train).colors, ...(o.design.colors || {}) } };
-    if (o.env) { const env = { ...S.env }; if (SCENERY[o.env.scenery]) env.scenery = o.env.scenery; if (o.env.tod) env.tod = o.env.tod; if (WEATHER[o.env.weather]) env.weather = o.env.weather; const changed = JSON.stringify(env) !== JSON.stringify(S.env); S.env = env; if (changed && glOK) World.setEnvironment(env); }
+    if (o.env) { const env = { ...S.env }; if (SCENERY[o.env.scenery]) env.scenery = o.env.scenery; if (o.env.tod) env.tod = o.env.tod; if (WEATHER[o.env.weather]) env.weather = o.env.weather; const changed = JSON.stringify(env) !== JSON.stringify(S.env); S.env = env; if (changed && glOK) World.setEnvironment(env, { retrack: false }); }
     if (glOK) World.setDesign(S.design);
     commit({ resetTrain: true }); refreshCircuit(); needFit = needFitTop = true; fitBoard(); refreshDesignSheet(); refreshScenerySheet(); savePrefs();
     toast(`${label || 'Loaded'} “${S.name}” · ${nodes.length} nodes`);
@@ -842,6 +942,9 @@
     if (S.playing) { scopeBuf.vg[scopeBuf.i] = gs.vg; scopeBuf.lg[scopeBuf.i] = gs.lg; scopeBuf.i = (scopeBuf.i + 1) % scopeBuf.vg.length; }
     const kM = trk.at(main.s);
     Sound.update({ v: main.v, type: typ, phase: main.phase, vg: gs.vg, ty: trk.get(trk.ty, main.s), uy: trk.get(trk.uy, main.s), launching: main.launching, launchSys: S.nodes[clamp(Math.floor(trk.u[kM]) + 1, 1, S.nodes.length - 1)]?.sys, wood: S.design.track === 'wood', pov: S.cam === 'pov', onLift: isLiftCode(trk.type[trk.at(main.s - TRAIN.len / 2)]) });
+    // tunnel echo and effects: the camera's tunnel in 3D views, the lead train's in the 2D editors
+    if (trk.tunnels && trk.tunnels.length) Sound.tunnel({ tn: !isBoard() && glOK ? (World.tunnelInside ? World.tunnelInside.tn : null) : (main.phase === 'run' ? trk.tunnelAt(main.s) : null), v: main.v });
+    else Sound.tunnel(null);
     if (!isBoard() && glOK) {
       if (S.cam === 'pov' && !(drag && drag.kind === 'look') && now - lastLookAt > 1400) { view.lookYaw *= Math.exp(-dt * 2.5); view.lookPitch *= Math.exp(-dt * 2.5); }
       World.frame(dt, trains, forces, view); World.render(dt);
@@ -919,6 +1022,8 @@
       if (!THREE || !THREE.WebGLRenderer) throw new Error('three.js did not load');
       World = createWorld(THREE);
       World.init($('gl'), S.quality, S.env); World.setDesign(S.design); glOK = true;
+      // classify tunnels against the real terrain and water now that the world exists
+      setEnvProbe(World.probe); rebuild(true); needFit = needFitTop = true; if (isBoard()) fitBoard(); boardDirty = true; refreshInspector(); refreshCheck();
       World.onThunder = d => Sound.thunder(d);
       World.setTrack(trk, { count: trains.length }); World.setGuides(S.guides);
       glState = 'ready'; refreshSys();
@@ -926,7 +1031,7 @@
       refreshStart(); if (!$('start').hidden) $('stRide').focus();
     }).catch(fail);
   }
-  window.__coaster = { nodeScreen(i) { if (S.cam === 'top') { if (!plan) plan = planNodes(S.nodes); return [tx(plan.x[i]), tz(plan.z[i])]; } return [sx(S.nodes[i].x), sy(S.nodes[i].y)]; }, routeToStation, seek(s, v, i = 0) { const t = trains[i]; t.phase = 'run'; t.dispatch = false; t.s = s; t.v = v; }, setCam, get trains() { return trains; }, get trk() { return trk; }, get S() { return S; }, loadPreset, insertElement, setMode, get an() { return an; }, get clear() { return clear; }, refreshDesignSheet, designChanged, get World() { return World; } };
+  window.__coaster = { get view() { return view; }, commit: o => commit(o), sampleScreen(k) { return S.cam === 'top' ? [tx(trk.px[k]), tz(trk.pz[k])] : [sx(trk.profX[k]), sy(trk.profY[k])]; }, nodeScreen(i) { if (S.cam === 'top') { if (!plan) plan = planNodes(S.nodes); return [tx(plan.x[i]), tz(plan.z[i])]; } return [sx(S.nodes[i].x), sy(S.nodes[i].y)]; }, routeToStation, seek(s, v, i = 0) { const t = trains[i]; t.phase = 'run'; t.dispatch = false; t.s = s; t.v = v; }, setCam, get trains() { return trains; }, get trk() { return trk; }, get S() { return S; }, loadPreset, insertElement, setMode, get an() { return an; }, get clear() { return clear; }, refreshDesignSheet, designChanged, get World() { return World; } };
   boot();
 })();
 // ===================== END APP =====================

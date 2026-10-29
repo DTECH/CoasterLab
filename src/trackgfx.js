@@ -307,7 +307,7 @@ function createTrackGfx(THREE, ctx) {
   // The walkway sits outside the train's swept box, with brackets running under it back to the spine and the
   // handrail always on the side away from the track.
   function buildCatwalks(t, below) {
-    const sel = ty => isLiftCode(ty) || ty === T_BLOCK || ty === T_BRAKES || ty === T_LAUNCH;
+    const sel = (ty, k) => (isLiftCode(ty) || ty === T_BLOCK || ty === T_BRAKES || ty === T_LAUNCH) && !(t.tunKind && t.tunKind[k]);  // no walkway inside tunnels or cuts
     const runs = runsOf(t, sel, t.nm); if (!runs.length) return;
     const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2];
     const sp = below ? 1 : -1, w = 0.8, sideOff = Math.max(1.15, hw + 0.15 + w / 2);
@@ -449,7 +449,6 @@ function createTrackGfx(THREE, ctx) {
     buildMechanics(t, below);
     buildSupports(t, d.supports || 'steel', below, d.track || 'tubular');
     if (d.catwalks !== false) buildCatwalks(t, below);
-    buildTunnels(t);
     buildStation(t, below);
     buildChevrons(t);
   }

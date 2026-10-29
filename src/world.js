@@ -16,7 +16,11 @@ function createWorld(THREE) {
   const camState = { mode: 'follow', pos: new V3(40, 30, 40), look: new V3(), hS: 0, lookYaw: 0, lookPitch: 0, fov: 70, init: false };
   const tq = new THREE.Quaternion(), tq2 = new THREE.Quaternion(), te = new THREE.Euler(), seatM = new THREE.Matrix4();
   const v1 = new V3(), v2 = new V3(), v3 = new V3(), v4 = new V3();
-  let trackGfx = null, trainGfx = null;
+  let trackGfx = null, trainGfx = null, tunnelGfx = null, tunLight = null, waterPre = null, waterUnder = null, terrainBaseY = null;
+  const tunState = { exp: 1, fogMix: 0, inside: null };
+  const envBase = { exposure: 1, fogColor: new THREE.Color(), fogDensity: 0 };
+  // terrain carving: a top-down mask (white = removed) over the area of any open cuts, read in the terrain shader
+  const carveU = { uCarve: { value: null }, uCarveRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCarveOn: { value: 0 } };
 
   // ---------- quality tiers ----------
   const TIERS = {
@@ -176,12 +180,20 @@ function createWorld(THREE) {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: groundTex, normalMap: groundNrm, normalScale: new THREE.Vector2(0.55, 0.55), roughness: sceneryKey === 'winter' ? 0.75 : 0.96, metalness: 0 });
+    mat.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, carveU);
+      sh.vertexShader = 'varying vec2 vCarveXZ;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vCarveXZ = (modelMatrix * vec4(position, 1.0)).xz;');
+      sh.fragmentShader = 'uniform sampler2D uCarve; uniform vec4 uCarveRect; uniform float uCarveOn; varying vec2 vCarveXZ;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n if (uCarveOn > 0.5) { vec2 cu = (vCarveXZ - uCarveRect.xy) / (uCarveRect.zw - uCarveRect.xy); if (cu.x > 0.0 && cu.y > 0.0 && cu.x < 1.0 && cu.y < 1.0 && texture2D(uCarve, cu).r > 0.5) discard; }');
+    };
     mats.terrain = mat;
     terrainMesh = new THREE.Mesh(geo, mat); terrainMesh.receiveShadow = true; terrainMesh.name = 'terrain';
+    terrainBaseY = Float32Array.from({ length: pos.length / 3 }, (_, i) => pos[i * 3 + 1]);
     scene.add(terrainMesh);
   }
   function buildWater() {
     if (waterMesh) { scene.remove(waterMesh); waterMesh.geometry.dispose(); waterMesh.material.dispose(); waterMesh = null; }
+    if (waterPre) { scene.remove(waterPre); waterPre.material.dispose(); waterPre = null; }
+    if (waterUnder) { scene.remove(waterUnder); waterUnder.material.dispose(); waterUnder = null; }
     const sc = SC(); if (sc.water === 'none') return;
     let geo;
     if (sc.water === 'ocean') { geo = new THREE.PlaneGeometry(12000, 12000); geo.rotateX(-Math.PI / 2); }
@@ -194,6 +206,54 @@ function createWorld(THREE) {
     if (sc.water === 'ocean') waterMesh.position.set(VALLEY.cx, WATER_Y, VALLEY.cz); else { waterMesh.position.set(LAKE.x, WATER_Y, LAKE.z); waterMesh.scale.set(1, 1, 1 / 1.35); }
     waterMesh.receiveShadow = true;
     scene.add(waterMesh);
+    // the surface seen from below (from inside an acrylic tube): a bright, fogged sheet that only shows its back face
+    if (!frozen) { waterUnder = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x4fb6c2, side: THREE.BackSide })); waterUnder.position.copy(waterMesh.position); waterUnder.scale.copy(waterMesh.scale); scene.add(waterUnder); }
+    configureWaterStencil();
+  }
+  // Water exclusion inside underwater tubes: the water is drawn into depth first, the tube volumes then count
+  // (z-fail) how many of their walls lie behind each water pixel, and the water colour is only drawn where the count is 0.
+  // This keeps the surface (and its reflections) out of the tubes, also with the camera inside one.
+  function configureWaterStencil() {
+    if (!waterMesh) return;
+    const on = !!(tunnelGfx && tunnelGfx.hasWater);
+    for (const w of [waterMesh, waterUnder]) { if (!w) continue; const m = w.material;
+      m.stencilWrite = on; m.stencilRef = 0; m.stencilFunc = THREE.EqualStencilFunc; m.stencilFail = m.stencilZFail = m.stencilZPass = THREE.KeepStencilOp; m.needsUpdate = true;
+      w.renderOrder = on ? 30 : 0; }
+    if (on && !waterPre) { waterPre = new THREE.Mesh(waterMesh.geometry, new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide })); waterPre.position.copy(waterMesh.position); waterPre.scale.copy(waterMesh.scale); waterPre.renderOrder = 10; scene.add(waterPre); }
+    if (waterPre) waterPre.visible = on;
+  }
+  // ---------- tunnels: build, carve the terrain for open cuts, water mask ----------
+  function buildTunnels(t) {
+    tunnelGfx.build(t);
+    carveTerrain(tunnelGfx.footprints);
+    configureWaterStencil();
+    const want = (t.tunnels || []).length > 0;
+    if (want && !tunLight) { tunLight = new THREE.PointLight(0xffe2b0, 0, 26, 1.6); scene.add(tunLight); }
+    if (!want && tunLight) { scene.remove(tunLight); tunLight = null; }
+  }
+  function carveTerrain(fps) {
+    if (!terrainMesh) return;
+    const geo = terrainMesh.geometry, pos = geo.attributes.position, arr = pos.array; let changed = false;
+    for (let i = 0; i < terrainBaseY.length; i++) if (arr[i * 3 + 1] !== terrainBaseY[i]) { arr[i * 3 + 1] = terrainBaseY[i]; changed = true; }
+    carveU.uCarveOn.value = 0;
+    if (fps.length) {
+      let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const f of fps) for (const p of f.poly) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+      x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+      const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff';
+      const X = x => (x - x0) / (x1 - x0) * S, Z = z => (z - z0) / (z1 - z0) * S;
+      for (const f of fps) { g.beginPath(); f.poly.forEach((p, i) => i ? g.lineTo(X(p.x), Z(p.z)) : g.moveTo(X(p.x), Z(p.z))); g.closePath(); g.fill(); }
+      const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      if (carveU.uCarve.value) carveU.uCarve.value.dispose();
+      carveU.uCarve.value = tex; carveU.uCarveRect.value.set(x0, z0, x1, z1); carveU.uCarveOn.value = 1;
+      // lower the heightmap vertices inside each cut so the coarse terrain dips toward the trench floor
+      const inPoly = (x, z, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
+      for (let i = 0; i < pos.count; i++) {
+        const x = arr[i * 3], z = arr[i * 3 + 2]; if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+        for (const f of fps) if (inPoly(x, z, f.poly)) { arr[i * 3 + 1] = Math.min(arr[i * 3 + 1], f.floor - 0.4); changed = true; break; }
+      }
+    }
+    if (changed) { pos.needsUpdate = true; geo.computeVertexNormals(); }
   }
 
   // ---------- sky (Preetham scattering + procedural clouds + stars and moon at night) ----------
@@ -334,6 +394,7 @@ function createWorld(THREE) {
     const grey = (fc[0] + fc[1] + fc[2]) / 3; fc = fc.map((v, k) => lerp(v, Math.max(grey * 0.9, shade[k] * 0.55), w.dark * 0.8));
     if (night) fc = [0.025, 0.032, 0.05];
     scene.fog = new THREE.FogExp2(new THREE.Color(fc[0], fc[1], fc[2]), t.fog * w.fog * (sc.water === 'ocean' ? 0.8 : 1));
+    envBase.fogColor.copy(scene.fog.color); envBase.fogDensity = scene.fog.density;
     if (night) {
       const md = skyUniforms.uMoonDir.value;
       sunLight.color.setRGB(0.62, 0.7, 0.9); sunLight.intensity = 0.32 * (1 - w.dark * 0.7); sunDirV = [md.x, md.y, md.z];
@@ -347,7 +408,7 @@ function createWorld(THREE) {
       hemiLight.groundColor.setRGB(0.32, 0.3, 0.2); hemiLight.intensity = t.hemiI * (1 + w.dark * 0.35);
       sunDirV = sd;
     }
-    renderer.toneMappingExposure = t.exposure * (1 + w.dark * 0.25);
+    renderer.toneMappingExposure = t.exposure * (1 + w.dark * 0.25); envBase.exposure = renderer.toneMappingExposure;
     for (const l of lampLights) { l.intensity = night ? 40 : (w.dark > 0.6 ? 8 : 0); l.visible = l.intensity > 0; }  // hidden lights cost nothing in the shaders
     for (const h of lampHeads) h.material.emissiveIntensity = night ? 3 : w.dark > 0.6 ? 1.2 : 0.3;
     if (mats.terrain) { mats.terrain.roughness = w.wet ? 0.7 : sceneryKey === 'winter' ? 0.75 : 0.96; }
@@ -509,7 +570,7 @@ function createWorld(THREE) {
     const put = (kind, x, z, m, c) => { const key = kind + ':' + Math.floor(x / tile) + ',' + Math.floor(z / tile); let b = buckets.get(key); if (!b) buckets.set(key, b = { kind, mats: [], cols: [] }); b.mats.push(m); b.cols.push(c); };
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new V3(), p = new V3(), col = new THREE.Color(), upv = new V3(0, 1, 0);
     const cx = (t.bounds.x0 + t.bounds.x1) / 2, cz = (t.bounds.z0 + t.bounds.z1) / 2;
-    const okGround = (x, z, h) => h >= WATER_Y + (sc.mountains === 'coast' ? 1.6 : 0.5) && Math.hypot(x - PLAZA.x, z - PLAZA.z) >= PLAZA.r && Math.hypot(x - FERRIS.x, z - FERRIS.z) >= 30;
+    const okGround = (x, z, h) => h >= WATER_Y + (sc.mountains === 'coast' ? 1.6 : 0.5) && Math.hypot(x - PLAZA.x, z - PLAZA.z) >= PLAZA.r && Math.hypot(x - FERRIS.x, z - FERRIS.z) >= 30 && !tunnelGfx.blocked(x, z, 2);
     let placed = 0, tries = 0; const target = Math.round(Q.trees * vg.density);
     const total = vg.conifer + vg.decid + vg.palm + vg.cactus || 1;
     while (placed < target && tries < target * 6) {
@@ -555,7 +616,7 @@ function createWorld(THREE) {
     }
     for (let i = 0; i < Q.rocks * (sc.mountains === 'mesa' ? 1.8 : 1); i++) {
       const a = R() * 6.28, r = Math.sqrt(R()) * 2400 + 60; const x = VALLEY.cx + Math.cos(a) * r, z = VALLEY.cz + Math.sin(a) * r; const h = terrainHeight(x, z);
-      if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r || th.near(x, z, 12) < 5 || h < WATER_Y - 1) continue;
+      if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r || th.near(x, z, 12) < 5 || h < WATER_Y - 1 || tunnelGfx.blocked(x, z, 3)) continue;
       const sc0 = (r > 1100 ? 3 + R() * 9 : 0.4 + R() * 1.6); p.set(x, h - sc0 * 0.35, z); q.setFromEuler(te.set(R() * 3, R() * 3, R() * 3)); s.set(sc0 * (0.8 + R() * 0.6), sc0 * (0.5 + R() * 0.4), sc0 * (0.8 + R() * 0.6)); m4.compose(p, q, s);
       const g = 0.8 + R() * 0.35; put('rock', x, z, m4.clone(), vg.snow && R() < 0.6 ? [1.3, 1.32, 1.36] : [g, g * 0.98, g * 0.95]);
     }
@@ -659,6 +720,16 @@ function createWorld(THREE) {
       const dir = v2.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
       const want = v3.copy(target).addScaledVector(dir, dist);
       const gy = terrainHeight(want.x, want.z) + 2; if (want.y < gy) want.y = gy;
+      // underground or under the lake the orbit camera would only see the ground or the water surface, so it drops
+      // into the tunnel and chases the train from inside it
+      const kd = trk.tunKind ? trk.tunKind[trk.at(sm)] : 0, buried = kd === TUN.UNDER || kd === TUN.WATER;
+      camState.tw = (camState.tw || 0) + ((buried ? 1 : 0) - (camState.tw || 0)) * (camState.init && camState.mode === 'follow' ? Math.min(1, dt * 3) : 1);
+      if (camState.tw > 0.001) {
+        const uc = trk.tunEnv ? trk.tunEnv.uc : 1, P2 = new V3(), T2 = new V3(), U2 = new V3(), R2 = new V3();
+        trackGfx.frameAt(trk, st.s - TRAIN.len - 6, P2, T2, U2, R2);
+        const chase = P2.addScaledVector(U2, uc + 0.45), look = new V3().copy(P).addScaledVector(U, uc);
+        want.lerp(chase, camState.tw); target.lerp(look, camState.tw);
+      }
       if (!camState.init || camState.mode !== 'follow') camState.pos.copy(want); else camState.pos.lerp(want, 1 - Math.exp(-dt * 4));
       if (!camState.init || camState.mode !== 'follow') camState.look.copy(target); else camState.look.lerp(target, 1 - Math.exp(-dt * 10));
       camera.position.copy(camState.pos); camera.up.set(0, 1, 0); camera.lookAt(camState.look);
@@ -689,7 +760,7 @@ function createWorld(THREE) {
   }
   const ctx = { terrainHeight, Q: () => Q, design: () => design, get groundTex() { return groundTex; }, get chainTex() { return chainTex; }, get grateTex() { return grateTex; } };
   function init(canvas, quality, env) {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.shadowMap.enabled = true;
     scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(70, 1, 0.08, 14000);
@@ -702,12 +773,13 @@ function createWorld(THREE) {
     groundTextures(); buildMaterials(); GEO = treeGeos();
     trackGfx = createTrackGfx(THREE, { ...ctx, groundTex, chainTex, grateTex });
     trainGfx = createTrains(THREE, { ...ctx, groundTex, frameAt: (...a) => trackGfx.frameAt(...a) });
+    tunnelGfx = createTunnelGfx(THREE, ctx);
     buildSky(); buildTerrain(); buildWater(); buildPark();
-    scene.add(vegGroup, trackGfx.group, trainGfx.group, parkGroup, fxGroup);
+    scene.add(vegGroup, trackGfx.group, trainGfx.group, parkGroup, fxGroup, tunnelGfx.group, tunnelGfx.stencilGroup);
     applyEnvironment();
   }
   function setTrack(t, opts = {}) {
-    trk = t; trackGfx.build(t);
+    trk = t; trackGfx.build(t); buildTunnels(t);
     if (opts.trains !== false) trainGfx.build(design, opts.count || 1);
     if (opts.vegetation !== false) scatterVegetation(t);
   }
@@ -717,10 +789,11 @@ function createWorld(THREE) {
     if (TIERS[prev] !== Q) { buildMaterials(); GEO = treeGeos(); buildSky(); buildTerrain(); buildWater(); buildPark(); applyEnvironment(); if (trk) setTrack(trk, { count: trainGfx.count }); }
     return tierResolved;
   }
-  function setEnvironment(env) {
+  // opts.retrack === false: the caller reclassifies the track against the new terrain and calls setTrack itself
+  function setEnvironment(env, opts = {}) {
     const sceneryChanged = env.scenery && env.scenery !== sceneryKey;
     if (env.tod) todKey = env.tod; if (env.weather) weatherKey = env.weather; if (env.scenery) sceneryKey = env.scenery;
-    if (sceneryChanged) { buildMaterials(); GEO = treeGeos(); buildTerrain(); buildWater(); buildPark(); if (trk) { trackGfx.build(trk); scatterVegetation(trk); } }
+    if (sceneryChanged) { buildMaterials(); GEO = treeGeos(); buildTerrain(); buildWater(); buildPark(); if (trk && opts.retrack !== false) { trackGfx.build(trk); buildTunnels(trk); scatterVegetation(trk); } }
     applyEnvironment();
   }
   function resize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); }
@@ -732,6 +805,7 @@ function createWorld(THREE) {
     updateCamera(dt, { s: st.s, v: st.v, lg: (forces[view.train || 0] || {}).lg || 0 }, view);
     trainGfx.updateRiders(dt, view, camera);
     trackGfx.guides = guides; trackGfx.updateChevrons(time, st.s, view.mode);
+    updateTunnelAmbience(dt);
     if (chainTex) chainTex.offset.y -= 4.4 * dt / 0.5;
     if (waterNormal) { waterNormal.offset.x += dt * 0.006; waterNormal.offset.y += dt * 0.004; }
     if (ferris) { ferris.wheel.rotation.z += dt * 0.05; for (const g of ferris.gondolas) g.rotation.z = -ferris.wheel.rotation.z; }
@@ -747,6 +821,29 @@ function createWorld(THREE) {
     else skyUniforms.uFlash.value = 0;
     updateShadowCam();
   }
+  // inside a tunnel: the eye adapts to the lighting, work lights or neon follow the camera, and from an underwater
+  // tube the world outside fades into blue-green water
+  function updateTunnelAmbience(dt) {
+    tunnelGfx.update(dt, time);
+    const inside = trk && trk.tunnels && trk.tunnels.length ? tunnelGfx.insideAt(camera.position) : null;
+    tunState.inside = inside;
+    const L = inside ? inside.tn.props.light : null, water = inside && inside.kind === TUN.WATER, glass = water && inside.tn.props.shell !== 'metal';
+    const targetExp = !inside ? 1 : L === 'black' ? (glass ? 0.55 : 0.16) : L === 'neon' ? 0.75 : 0.85;
+    tunState.exp += (targetExp - tunState.exp) * Math.min(1, dt * (targetExp < tunState.exp ? 3.5 : 1.6));
+    renderer.toneMappingExposure = envBase.exposure * tunState.exp;
+    tunState.fogMix += ((glass ? 1 : 0) - tunState.fogMix) * Math.min(1, dt * 2.5);
+    if (scene.fog) { scene.fog.color.copy(envBase.fogColor).lerp(UNDERWATER_FOG, tunState.fogMix); scene.fog.density = envBase.fogDensity * (1 + tunState.fogMix * 40) + tunState.fogMix * 0.03; }
+    // under the lake the sky is replaced by the colour of the water column
+    const deep = tunState.fogMix > 0.5; if (skyMesh.visible === deep) { skyMesh.visible = !deep; scene.background = deep ? scene.fog.color : null; }
+    if (tunLight) {
+      if (inside && L !== 'black') {
+        const f = v1.set(0, 0, -1).applyQuaternion(camera.quaternion); tunLight.position.copy(camera.position).addScaledVector(f, 3).add(v2.set(0, 0.6, 0));
+        if (L === 'neon') { const h = (time * 0.25) % 1; tunLight.color.setHSL(h, 1, 0.55); tunLight.intensity = 4 + (((time * 2.3) % 1) > 0.85 ? 16 : 0); }
+        else { tunLight.color.set(0xffe2b0); tunLight.intensity = 28; }
+      } else tunLight.intensity = 0;
+    }
+  }
+  const UNDERWATER_FOG = new THREE.Color(0x0d4a57);
   function render(dt) {
     const boost = skyUniforms.uFlash.value; const hi = hemiLight.intensity;
     if (boost > 0) hemiLight.intensity = hi + boost * 4;
@@ -761,10 +858,15 @@ function createWorld(THREE) {
     }
   }
   function stats() { const i = renderer.info; return { fps, pr, tier: tierResolved, tierName: Q.name, tris: i.render.triangles, calls: i.render.calls }; }
-  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight,
+  // ground and water seen by the track classifier (tunnels): the uncarved terrain and the water surface where there is water
+  const probe = {
+    ground: (x, z) => terrainHeight(x, z),
+    water: (x, z) => { const sc = SC(); if (sc.water === 'none') return null; if (sc.water !== 'ocean' && Math.hypot(x - LAKE.x, (z - LAKE.z) * 1.35) > LAKE.r * 1.9) return null; return terrainHeight(x, z) < WATER_Y - 0.2 ? WATER_Y : null; }
+  };
+  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
     setGuides: g => { guides = g; }, TIERS, TOD, TOD_ORDER,
     rescatter: t => scatterVegetation(t), rebuildTrains: count => trainGfx.build(design, count),
-    get camera() { return camera; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },
+    get camera() { return camera; }, get scene() { return scene; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },
     get env() { return { tod: todKey, weather: weatherKey, scenery: sceneryKey }; }, get riderCount() { return trainGfx.riderCount; },
     set onResize(f) { onResizeCb = f; }, set onThunder(f) { onThunder = f; }, get isNight() { return nightF > 0; } };
 }

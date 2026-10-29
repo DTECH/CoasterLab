@@ -12,7 +12,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 # Scripts in load order: plain data and physics first, then rendering, then the app.
-SCRIPTS = ["core.js", "elements.js", "designs.js", "trackgfx.js", "trains.js", "world.js", "audio.js", "share.js", "ui.js"]
+SCRIPTS = ["core.js", "elements.js", "designs.js", "trackgfx.js", "tunnels.js", "trains.js", "world.js", "audio.js", "share.js", "ui.js"]
 
 
 def fragment() -> str:

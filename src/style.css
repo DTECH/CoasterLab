@@ -320,3 +320,10 @@ input.json.one { height: 34px; width: 100%; box-sizing: border-box; margin-top: 
 #legend { top: 10px; bottom: auto; }
 @media (max-width: 1100px) { #legend { top: 52px; right: auto; left: 10px; } }
 .chk.alerts { margin-top: 10px; font-size: 12px; }
+
+/* tunnel properties */
+.tunsum { font-size: 12px; color: var(--muted); margin: -2px 0 12px; line-height: 1.45; }
+.tunsum b { color: var(--text); font-weight: 600; }
+.tunsum i { font-style: normal; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 5px 0 1px; vertical-align: -1px; }
+.tunchecks { grid-template-columns: repeat(3, auto); justify-content: start; gap: 6px 14px; }
+#tunSec .seg button { padding: 0 6px; font-size: 12.5px; }

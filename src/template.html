@@ -110,7 +110,7 @@
         <div class="field" id="fSysRow" hidden><div class="row"><label for="fSys">Launch system</label></div><select class="btn wide sel" id="fSys"><option value="lsm">LSM (about 1 G)</option><option value="hydraulic">Hydraulic (about 1.6 G)</option><option value="pneumatic">Pneumatic (about 2.4 G)</option></select></div>
         <div class="field" id="fHoldRow" hidden><div class="row"><label for="fHold">Hold the train for</label><span><input type="number" id="fHoldn" step="0.5" min="0" max="20" aria-label="Hold time in seconds"><span class="unit">s</span></span></div><input type="range" id="fHold" min="0" max="10" step="0.5"></div>
         <div class="checks">
-          <label class="chk"><input type="checkbox" id="fTunnel"> Tunnel over this segment</label>
+          <label class="chk"><input type="checkbox" id="fTunnel"> Covered tunnel over this segment</label>
           <label class="chk" title="Advanced: at a vertical point, the track reverses direction and the riders' frame flips (used by Immelmanns and dive loops)"><input type="checkbox" id="fFlip"> Direction flip (vertical point)</label>
         </div>
         <div class="btnrow">
@@ -119,6 +119,26 @@
           <button class="btn" id="bAppend" title="Add a node at the end of the track">Append node</button>
         </div>
       </div>
+    </section>
+    <section class="sec" id="tunSec" hidden>
+      <h2>Tunnel properties <span class="tag" id="tunTag"></span></h2>
+      <p class="tunsum" id="tunSum"></p>
+      <div class="editable">
+        <div class="field"><div class="row"><label>Interior lighting</label></div>
+          <div class="seg wide" id="tunLight" role="group" aria-label="Interior lighting"><button data-v="black">Pitch black</button><button data-v="work">Work lights</button><button data-v="neon" title="Neon strips with colour-cycling strobes">Neon</button></div></div>
+        <div class="field" id="tunStyleRow"><div class="row"><label>Covered shell</label></div>
+          <div class="seg wide" id="tunStyle" role="group" aria-label="Covered tunnel shell"><button data-v="wood">Timber</button><button data-v="metal">Corrugated</button><button data-v="wire">Wireframe</button></div></div>
+        <div class="field" id="tunShellRow"><div class="row"><label>Underwater tube</label></div>
+          <div class="seg wide" id="tunShell" role="group" aria-label="Underwater tube"><button data-v="acrylic">Acrylic glass</button><button data-v="metal">Bolted steel</button></div></div>
+        <div class="field"><div class="row"><label>Wall clearance</label><span class="unit" id="tunGap" title="Smallest gap between the walls and the riders' reach envelope"></span></div>
+          <div class="seg wide" id="tunFit" role="group" aria-label="Wall clearance"><button data-v="tight">Tight</button><button data-v="standard">Standard</button><button data-v="roomy">Roomy</button></div></div>
+        <div class="field"><div class="row"><label>Atmosphere</label></div>
+          <div class="checks tunchecks"><label class="chk"><input type="checkbox" id="tunFog"> Fog / mist</label><label class="chk"><input type="checkbox" id="tunSpray"> Water spray</label><label class="chk"><input type="checkbox" id="tunDust"> Dust</label></div></div>
+        <div class="field"><div class="row"><label for="tunSfx">Sound</label></div>
+          <label class="chk"><input type="checkbox" id="tunEcho"> Echo inside the tunnel</label>
+          <select class="btn wide sel" id="tunSfx" aria-label="Sound effect on entry" style="margin-top:8px"><option value="none">No effect on entry</option><option value="monster">Monster roar</option><option value="scifi">Sci-fi zaps</option><option value="thunder">Cave rumble</option></select></div>
+      </div>
+      <p class="hint" id="tunHint"></p>
     </section>
   </aside>
 

@@ -41,6 +41,7 @@ Elements are spliced in after the selected node, sized for the speed the train h
 | Turns | Banked 90° turn, 180° turnaround, 540° helix, S-curve, overbanked turn, hammerhead, wave turn, Stengel dive, wild-mouse hairpin |
 | Inversions | Vertical loop, corkscrew, barrel roll, heartline roll, inline twist, zero-G roll, zero-G stall, Immelmann, dive loop, cobra roll, sea serpent, batwing, sidewinder, Norwegian loop, inverted top hat, pretzel loop, non-inverting loop |
 | Lifts & launches | Chain lift, cable lift, tire lift, vertical lift, LSM launch, hydraulic launch, pneumatic launch, booster tires |
+| Tunnels | Covered tunnel, underground dive, open-cut dip |
 | Brakes | Trim brake, block brake (MCBR), final brake run |
 
 Loops, top hats and half loops are force-integrated: the curve is computed so riders feel a chosen G at every point (about 4 G at the bottom of a loop easing to 1.3 G at the top), the way clothoid loops are designed. Corkscrews and rolls rotate around the riders' heartline, and helical sections lean with the felt force so riders aren't pushed sideways.
@@ -48,8 +49,25 @@ Loops, top hats and half loops are force-integrated: the curve is computed so ri
 ### Node inspector
 - Distance, elevation, turn angle (yaw, ±360° per node) and banking (roll, ±180°, so full inversions are possible).
 - **Segment type** for the track leading into the node: station, track, chain lift, cable lift, tire lift, launch (LSM, hydraulic or pneumatic, with a target speed), booster tires, trim brake (target speed), block brake (with an optional hold time) or brake run.
-- **Tunnel** over a segment, and **direction flip** for advanced vertical-point reversals (used by Immelmanns and dive loops).
+- **Covered tunnel** over a segment, and **direction flip** for advanced vertical-point reversals (used by Immelmanns and dive loops).
 - **Auto-bank** sets the roll that cancels sideways force at the predicted speed.
+
+### Tunnels
+Tunnels come from where the track runs, so there is nothing to place by hand except covered sections:
+
+| Kind | When it appears | Shell |
+|---|---|---|
+| **Underground** | The ground covers the riders' clearance circle by at least 1.2 m | Bored concrete liner with ring joints, bolt pockets and a normal map for close-up POV, plus a walkway floor |
+| **Underwater** | The clearance circle dips into the lake or the sea | Transparent acrylic tube with steel hoops, or a bolted steel conduit. The inside of the glass runs a shader of panning condensation drips and caustic light |
+| **Open cut** | The rails are below ground but the cover is too thin for a bore | A concrete U-channel; the terrain is lowered inside it and masked out of the cut |
+| **Covered** | Tick **Covered tunnel** on a node (or use the Covered tunnel element) on a stretch above ground | Timber, corrugated metal or a futuristic wireframe, built from instanced modules every 2.4 m |
+
+- **Portals:** a concrete headwall with a bore and coping, a collar where a tube meets the water, and facades on covered tunnels. Each sits at the point where the track actually crosses the ground or water line, turned to the track direction.
+- **Water mask:** the lake is drawn into depth first, the tube volumes then count with a z-fail stencil how many of their walls lie behind each water pixel, and the water colour is drawn only where the count is 0. The water surface and its reflections stay out of the tube, also with the camera inside it. From inside a glass tube the sky gives way to a blue-green water column with fog, and the eye adapts to the tunnel lighting.
+- **Clearance:** each tunnel's inner wall sits a set margin (Tight 0.3 m, Standard 0.55 m, Roomy 0.95 m) outside the circle that holds the train type's arm-reach box, and the 3D build measures the smallest gap from the box corners to the wall at every half metre. Other track can't pass through a tunnel's walls (the clash check uses the tunnel radius), and trees and rocks stay off covered tunnels.
+- **Tunnel properties:** select a node inside a tunnel, or click a tunnel band in the Side or Top view, to open the panel. It sets interior lighting (pitch black, work lights or neon strips with colour-cycling strobes), the covered shell, the underwater tube, the wall clearance, fog, water spray and dust particles, an echo while inside, and a sound effect on entry (monster roar, sci-fi zaps or cave rumble) placed in 3D with HRTF panning so it passes the riders' ears. The settings apply to the whole tunnel and are saved with the design.
+- The Side view draws the ground and water under the track, each tunnel's shell and its portals; the Top view shades tunnels and water. Changing the scenery reclassifies the track against the new landscape.
+- **Ratings:** the Design check scores Excitement, Intensity and Nausea. Excitement rises with tunnel length and how close the walls pass (near misses), and each entry portal adds a short Intensity and Nausea spike from the sudden change in light, stronger into a pitch-black or strobing tunnel.
 
 ### Design: trains, cars and track
 The **Design** panel slides in beside the 3D view, so changes show live.
@@ -82,7 +100,7 @@ The **Scenery** panel picks the landscape, time of day and weather:
 ### Simulation and telemetry
 - **Physics** by arc length with gravity averaged over the train, rolling friction and aerodynamic drag. Lifts pull at their set speed with anti-rollback, launches accelerate at their system's rate (LSM about 1 G, hydraulic about 1.6 G, pneumatic about 2.4 G) and relaunch a train that rolls back, trims slow the train to a set speed, and block brakes stop it when the next block is occupied.
 - **G-forces** come from track curvature, speed, tangential acceleration and gravity, resolved into each rider's frame (flying trains measure G into the seat).
-- **Design check** reruns a dry-run simulation on every edit and reports length, height, top speed, peak and lowest vertical G, peak lateral G, inversion count, airtime, ride time, block sections and how many trains can run, track clashes (with **Show** buttons that jump to them in the Top view) and crossovers.
+- **Design check** reruns a dry-run simulation on every edit and reports length, height, top speed, peak and lowest vertical G, peak lateral G, inversion count, airtime, ride time, block sections and how many trains can run, track clashes (with **Show** buttons that jump to them in the Top view), crossovers, tunnel count and wall clearance, and the Excitement, Intensity and Nausea ratings.
 - A scrolling 10-second **G-force oscilloscope**, live **energy** bars and **safety alerts** for HIGH G, BLACKOUT, REDOUT and LATERAL G. The pop-up warnings can be turned off with **Turn off** on the warning or the checkbox in the telemetry panel; the safety status stays visible in the panel. In the rider view, high G greys out and negative G reddens the edges of the screen.
 
 ### 3D views
@@ -93,6 +111,7 @@ The **Scenery** panel picks the landscape, time of day and weather:
 Everything is synthesised with the Web Audio API, no sound files.
 - **Track:** chain-lift clack, rail roar that scales with speed, wooden-track rattle, launch sounds (an LSM whine, a hydraulic roar or a pneumatic blast), brake whine, drive-tyre hum, wind, rain and thunder.
 - **Track + Riders:** adds voices made with formant synthesis (a glottal source shaped by vowel filters, with pitch jitter, vibrato and breath noise across child, female and male voices). Riders gasp as they crest the lift, scream and "woo-hoo" on drops and airtime, laugh between thrills and cheer when the train returns.
+- **Tunnels:** a convolver echo (a long impulse with flutter reflections between the walls) fades in while the camera is inside a tunnel, the weather fades out, and a tunnel can trigger a spatial sound effect as the train enters.
 
 ### Saving and sharing between devices
 - The working design auto-saves and is restored on the next visit. **Save / Share** keeps named designs, including the train, colours and scenery.
@@ -110,13 +129,16 @@ Everything is synthesised with the Web Audio API, no sound files.
 | Inverted Twister | Inverted | Closed | 993 m | 105 km/h | 4.02 | −0.37 | 1.03 | 5 |
 | Strata Launch Tower | Hyper | Closed | 843 m | 190 km/h | 3.70 | −1.10 | 0.01 | 0 |
 | Timber Out-and-Back | Wooden | Closed | 826 m | 91 km/h | 3.04 | −0.42 | 0.42 | 0 |
-| Dive Machine | Dive | Closed | 681 m | 103 km/h | 4.10 | −0.96 | 1.64 | 2 |
+| Dive Machine | Dive | Closed | 889 m | 103 km/h | 4.10 | −0.96 | 1.64 | 2 |
 | Wild Mouse | Wild mouse | Closed | 364 m | 45 km/h | 1.70 | 0.55 | 0.54 | 0 |
 | Boomerang Shuttle | Looping | Open | 377 m | 102 km/h | 3.98 | −0.72 | 0.39 | 1 |
 | Family Mine Train | Mine train | Closed | 446 m | 54 km/h | 1.44 | 0.69 | 0.05 | 0 |
+| Lake Tunnel Express | Hyper | Closed | 1,589 m | 112 km/h | 2.10 | −0.09 | 0.33 | 0 |
 | Blank Slate (3 nodes) | Hyper | Open | 60 m | — | — | — | — | — |
 
 These figures come from `node tools/check_presets.js`, which also checks that no preset has a track clash.
+
+Lake Tunnel Express drops into the alpine lake through an acrylic tube on the lake bed, climbs out through an underground bore and an open cut, then threads a neon-lit covered tunnel and two airtime hills on the way home.
 
 ## Controls
 
@@ -126,6 +148,7 @@ These figures come from `node tools/check_presets.js`, which also checks that no
 | Bend the layout | Drag a node in the Top view | Drag it |
 | Change a turn | Drag the ↻ handle in the Top view | Drag it |
 | Add a node | Double-click empty space (Side view) | Double-tap empty space |
+| Open a tunnel's properties | Click its band in the Side or Top view, or select a node inside it | Tap the band |
 | Pan / zoom an editor | Drag background / scroll wheel | Drag / pinch |
 | Orbit or look around | Drag in Follow or Rider POV | Drag |
 | Undo / redo | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Toolbar buttons |
@@ -150,7 +173,7 @@ These figures come from `node tools/check_presets.js`, which also checks that no
 | High | Desktop / laptop GPUs (NVIDIA, Radeon RX, Intel Arc) | 4096 | 12,000 | 45,000 |
 | Ultra | Pick manually on strong GPUs | 4096 | 20,000 | 80,000 |
 
-Riders, trees, grass, supports and track ties are GPU-instanced. Dynamic resolution lowers the render scale when the frame rate stays under about 48 fps and raises it again above about 58 fps. Park lamp lights only switch on at night or in storms, and not at all on the Low tier. The fps, tier and render scale appear at the bottom left of the 3D view. The renderer requests the high-performance GPU, so on a laptop with switchable graphics check that the browser is running on the discrete GPU.
+Riders, trees, grass, supports and track ties are GPU-instanced. Dynamic resolution lowers the render scale when the frame rate stays under about 48 fps and raises it again above about 58 fps. Park lamp lights only switch on at night or in storms, and not at all on the Low tier. The fps, tier and render scale appear at the bottom left of the 3D view (and in the line under the Design check). Tunnels add about two dozen draw calls: covered shells, hoops and work lamps are instanced, and the tube and liner sweeps use one ring per metre. The renderer requests the high-performance GPU, so on a laptop with switchable graphics check that the browser is running on the discrete GPU.
 
 ## Project structure
 
@@ -162,7 +185,8 @@ src/
   core.js               Track model (profile spline, heading, heartline roll, flips), physics, blocks, G-forces, clearance
   elements.js           Element generators, splicing, presets
   designs.js            Train types, paint schemes, track and support styles, scenery and weather definitions
-  trackgfx.js           Track, supports, catwalks, tunnels and LED meshes
+  trackgfx.js           Track, supports, catwalks and LED meshes
+  tunnels.js            Tunnel shells, portals, lights, particles, water stencil volumes, clearance and placement grids
   trains.js             Car models, restraints, patterns and animated riders
   world.js              three.js scene: sky, terrain, water, vegetation, weather, park, cameras
   audio.js              Web Audio synthesis for the track, weather and riders
@@ -203,7 +227,7 @@ Edit files under `src/` and rebuild. Do not edit `index.html` by hand.
 }
 ```
 
-`x` is the distance along the unrolled track and `y` the height, both in metres. `yaw` and `roll` are in degrees. `type` is the behaviour of the segment that leads *into* the node. Optional fields are `spd` (km/h for lifts, launches, trims and boosters), `sys` (launch system), `hold` (seconds on a block brake), `lat` and `off` (sideways offsets used by loops and corkscrews), `flip` (direction reversal at a vertical point) and `tunnel`. `design` and `env` are optional, and version 1 blueprints still import. Imports clamp values to the editor's ranges.
+`x` is the distance along the unrolled track and `y` the height, both in metres. `yaw` and `roll` are in degrees. `type` is the behaviour of the segment that leads *into* the node. Optional fields are `spd` (km/h for lifts, launches, trims and boosters), `sys` (launch system), `hold` (seconds on a block brake), `lat` and `off` (sideways offsets used by loops and corkscrews), `flip` (direction reversal at a vertical point), `tunnel` (a covered tunnel over the incoming segment) and `tun` (tunnel properties: `style` wood/metal/wire, `shell` acrylic/metal, `fit` tight/standard/roomy, `light` black/work/neon, `fog`, `spray`, `dust`, `echo`, `sfx` none/monster/scifi/thunder). `design` and `env` are optional, and version 1 blueprints still import. Imports clamp values to the editor's ranges.
 
 ## Running offline
 
@@ -219,6 +243,7 @@ Without Google Fonts the page falls back to system fonts.
 
 - The physics treats the train as a chain of point masses along the track. It doesn't model wheel friction per car or flex in the structure, so forces are close to a real ride but not exact.
 - Clashes are checked against a simple envelope around each train type. Supports avoid the track, but scenery such as trees can still sit close to it.
+- Tunnels are worked out against the landscape of the 3D world. If WebGL can't start, the 2D editors assume flat ground with no water, so only covered tunnels appear.
 - Gist sync needs the page to reach api.github.com. It works on the GitHub Pages version; some embedded previews block it, and share links work everywhere.
 
 ## Credits

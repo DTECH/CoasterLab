@@ -4,6 +4,7 @@
 function createSound(onError) {
   let ctx = null, master, voiceBus, trackBus, wxBus, reverb, reverbSend, noiseBuf, mode = 0;
   let rumbleG, rumbleF, windG, windF, brakeG, brakeF, bo1, bo2, tyreG, tyreO, launchG, launchO, launchF, rainG, rainF, gustG, gustF;
+  let echo, echoSend, sfxBus, tunCur = null, tunSfxT = 0;
   let nextClack = 0, nextJoint = 0, lastScream = -10, lastWoo = -10, lastLaugh = -10, lastGasp = -10, wasLift = false, launchOn = 0, weatherKind = null;
   const glottal = {};
   function init() {
@@ -17,6 +18,10 @@ function createSound(onError) {
     // outdoor reverb: short, diffuse
     reverb = ctx.createConvolver(); reverb.buffer = makeIR(1.6, 2.6); reverbSend = ctx.createGain(); reverbSend.gain.value = 0.22; reverbSend.connect(reverb); reverb.connect(master);
     voiceBus.connect(reverbSend);
+    // tunnel echo: a long, slowly decaying impulse with early slap-back reflections, fed from the track and voice buses
+    echo = ctx.createConvolver(); echo.buffer = makeIR(3.4, 1.9, true); echoSend = ctx.createGain(); echoSend.gain.value = 0; echoSend.connect(echo); echo.connect(master);
+    trackBus.connect(echoSend); voiceBus.connect(echoSend);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master); sfxBus.connect(echoSend);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate); const d = noiseBuf.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
     for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
     // glottal source spectra: pressed (screams) and modal (cheers, laughs)
@@ -36,9 +41,11 @@ function createSound(onError) {
     gustF = ctx.createBiquadFilter(); gustF.type = 'bandpass'; gustF.frequency.value = 320; gustF.Q.value = 0.7; gustG = ctx.createGain(); gustG.gain.value = 0; loop().connect(gustF).connect(gustG).connect(wxBus);
     return true;
   }
-  function makeIR(sec, decay) {
+  function makeIR(sec, decay, slap) {
     const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 400 ? i / 400 : 1); } }
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 400 ? i / 400 : 1) * (slap ? 0.55 : 1); }
+      // flutter echoes between parallel tunnel walls
+      if (slap) for (let r = 1; r < 9; r++) { const at = Math.floor(ctx.sampleRate * (0.045 + c * 0.006) * r); if (at < len) for (let j = 0; j < 220; j++) d[at + j] += (Math.random() * 2 - 1) * 0.9 * Math.pow(0.72, r) * (1 - j / 220); } }
     return b;
   }
   let paused = false, suspendT = 0;
@@ -177,6 +184,55 @@ function createSound(onError) {
     wasLift = !!p.onLift;
     if (weatherKind === 'rain' && Math.random() < 0.3) noiseBurst(t + Math.random() * 0.1, 0.01, 3000 + Math.random() * 3000, 2, 0.02 + Math.random() * 0.04, 'bandpass', wxBus, 0.001);
   }
-  return { setMode, setPaused, update, cheer, thunder, setWeather, get mode() { return mode; } };
+  // ---------- tunnels: echo while inside, and a one-shot effect placed in 3D space ahead of the train ----------
+  // A source fixed in the tunnel ahead of the riders moves past them at the train's speed: the panner position is
+  // ramped from in front to behind, so with HRTF panning the effect passes by the listener's ear.
+  function spatial(t, side, v, dur) {
+    const pn = ctx.createPanner(); pn.panningModel = 'HRTF'; pn.distanceModel = 'inverse'; pn.refDistance = 2.5; pn.rolloffFactor = 1.2;
+    const d = Math.max(8, Math.min(60, v * 1.4)), x = side * 2.2, sp = Math.max(4, v);
+    if (pn.positionX) { pn.positionX.setValueAtTime(x, t); pn.positionY.setValueAtTime(0.8, t); pn.positionZ.setValueAtTime(-d, t); pn.positionZ.linearRampToValueAtTime(-d + sp * dur, t + dur); }
+    else pn.setPosition(x, 0.8, -d + sp * dur * 0.5);
+    pn.connect(sfxBus); return pn;
+  }
+  function monster(t, v) {
+    const side = Math.random() < 0.5 ? -1 : 1, dur = 2.6, out = spatial(t, side, v, dur);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(48, t); o.frequency.linearRampToValueAtTime(74, t + 0.5); o.frequency.linearRampToValueAtTime(38, t + dur);
+    const wob = ctx.createOscillator(); wob.frequency.value = 11; const wg = ctx.createGain(); wg.gain.value = 14; wob.connect(wg).connect(o.frequency);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6; lp.frequency.setValueAtTime(260, t); lp.frequency.linearRampToValueAtTime(900, t + 0.45); lp.frequency.linearRampToValueAtTime(200, t + dur);
+    const g = ctx.createGain(); env(g, t, 0.9, 0.25, dur - 0.25); o.connect(lp).connect(g).connect(out);
+    const n = noiseBurst(t + 0.05, dur - 0.3, 420, 2.2, 0.55, 'bandpass', out, 0.2); n.frequency.linearRampToValueAtTime(240, t + dur);
+    for (const x of [o, wob]) { x.start(t); x.stop(t + dur + 0.1); }
+  }
+  function scifi(t, v) {
+    const side = Math.random() < 0.5 ? -1 : 1, out = spatial(t, side, v, 2.2);
+    for (let i = 0; i < 5; i++) {
+      const tt = t + i * 0.28, o = ctx.createOscillator(), m = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.setValueAtTime(1800 - i * 120, tt); o.frequency.exponentialRampToValueAtTime(140, tt + 0.22);
+      m.frequency.value = 63; mg.gain.value = 600; m.connect(mg).connect(o.frequency);
+      env(g, tt, 0.16, 0.004, 0.24); o.connect(g).connect(out); for (const x of [o, m]) { x.start(tt); x.stop(tt + 0.3); }
+    }
+    const hum = ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.setValueAtTime(110, t); hum.frequency.linearRampToValueAtTime(330, t + 1.8);
+    const hf = ctx.createBiquadFilter(); hf.type = 'bandpass'; hf.Q.value = 9; hf.frequency.value = 700; const hg = ctx.createGain(); env(hg, t + 0.2, 0.12, 0.6, 1.4); hum.connect(hf).connect(hg).connect(out); hum.start(t); hum.stop(t + 2.3);
+  }
+  function rumble(t, v) {
+    const out = spatial(t, 0, v, 3);
+    for (let i = 0; i < 3; i++) noiseBurst(t + i * 0.45, 1.6 + Math.random(), 60 + Math.random() * 50, 0.9, 0.7 / (1 + i * 0.3), 'lowpass', out, 0.06);
+    noiseBurst(t, 0.18, 2600, 0.8, 0.25, 'bandpass', out, 0.004);
+  }
+  // st: { tn: the enclosure the listener is in (or null), v: train speed }
+  function tunnel(st) {
+    if (!ctx) return; const tn = st && st.tn, t = ctx.currentTime;
+    if (tn !== tunCur) {
+      tunCur = tn || null;
+      const wet = tn && tn.props.echo !== false ? (tn.kinds && tn.kinds.includes(TUN.WATER) && tn.props.shell !== 'metal' ? 0.32 : 0.55) : 0;
+      echoSend.gain.setTargetAtTime(wet, t, tn ? 0.08 : 0.35);
+      wxBus.gain.setTargetAtTime(tn ? 0.15 : 0.8, t, 0.2);   // weather fades out inside
+      if (tn && mode > 0 && !paused && t - tunSfxT > 3) {
+        const v = Math.abs(st.v || 15), sfx = tn.props.sfx;
+        if (sfx === 'monster') { monster(t + 0.35, v); tunSfxT = t; } else if (sfx === 'scifi') { scifi(t + 0.25, v); tunSfxT = t; } else if (sfx === 'thunder') { rumble(t + 0.3, v); tunSfxT = t; }
+      }
+    }
+  }
+  return { setMode, setPaused, update, cheer, thunder, setWeather, tunnel, get mode() { return mode; } };
 }
 // ===================== END AUDIO =====================

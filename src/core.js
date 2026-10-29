@@ -31,7 +31,7 @@ const TRAIN = { cars: 6, carLen: 2.6, massPerCar: 1150, hl: 1.1, envOff: 1.0, en
 function setTrainSpec(spec) { Object.assign(TRAIN, spec || {}); TRAIN.len = TRAIN.cars * TRAIN.carLen; TRAIN.mass = TRAIN.cars * TRAIN.massPerCar; }
 setTrainSpec();
 const PHYS = { mu: 0.0105, drag: 0.00024, brakeDecel: 6.0, trimSpeed: 7.5, stationSpeed: 2.4, transferSpeed: 6.0, stationDecel: 1.8, loadTime: 3.2, blockRelease: 2.6 };
-const LIMITS = { y: [0, 500], x: [-200, 20000], yaw: [-360, 360], roll: [-180, 180] };
+const LIMITS = { y: [-40, 500], x: [-200, 20000], yaw: [-360, 360], roll: [-180, 180] };
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -186,11 +186,11 @@ function buildTrack(nodes, closed) {
     for (let k = 0; k < nm; k++) { const s = Math.min(k * DS, ts[N - 1]); while (si < N - 2 && ts[si + 1] < s) si++; lateral[k] += ts[si + 1] > ts[si] ? splineEval(ts, vs, Mo, si, s) : vs[si]; }
   }
   // segment types and per-sample parameters
-  const typeM = new Uint8Array(nm), sSpd = new Float32Array(nm), sAcc = new Float32Array(nm), sHold = new Float32Array(nm), tunnel = new Uint8Array(nm);
+  const typeM = new Uint8Array(nm), sSpd = new Float32Array(nm), sAcc = new Float32Array(nm), sHold = new Float32Array(nm), tunnel = new Uint8Array(nm), segNodeM = new Uint16Array(nm);
   const segP = nodes.map(segParams);
   for (let k = 0; k < nm; k++) {
     const si = clamp(Math.floor(pu[k]) + 1, 1, N - 1);
-    typeM[k] = TYPE_CODE[nodes[si].type] ?? T_STEEL; sSpd[k] = segP[si].spd; sAcc[k] = segP[si].acc; sHold[k] = segP[si].hold; tunnel[k] = nodes[si].tunnel ? 1 : 0;
+    typeM[k] = TYPE_CODE[nodes[si].type] ?? T_STEEL; sSpd[k] = segP[si].spd; sAcc[k] = segP[si].acc; sHold[k] = segP[si].hold; tunnel[k] = nodes[si].tunnel ? 1 : 0; segNodeM[k] = si;
   }
   // brake targets per contiguous brake run
   const brakeT = new Float32Array(nm);
@@ -245,6 +245,7 @@ function buildTrack(nodes, closed) {
   const brake = new Float32Array(n); brake.set(brakeT);
   const segSpd = new Float32Array(n); segSpd.set(sSpd); const segAcc = new Float32Array(n); segAcc.set(sAcc); const segHold = new Float32Array(n); segHold.set(sHold);
   const tun = new Uint8Array(n); tun.set(tunnel);
+  const segNode = new Uint16Array(n); segNode.set(segNodeM); for (let k = nm; k < n; k++) segNode[k] = N - 1;
   const rollA = new Float32Array(n); rollA.set(roll);
   const headA = new Float32Array(n); headA.set(heading);
   const profX = new Float32Array(n), profY = new Float32Array(n), uArr = new Float32Array(n);
@@ -297,14 +298,75 @@ function buildTrack(nodes, closed) {
 
   const trk = { n, nm, closed, L, Lm, prof, nodeS, px: px3, py: py3, pz: pz3, hx: hx3, hy: hy3, hz: hz3, tx, ty, tz, ux, uy, uz, rx, ry, rz, kx, ky, kz,
     type, brake, segSpd, segAcc, segHold, tunnel: tun, roll: rollA, heading: headA, profX, profY, u: uArr, stationEnd, stationStop, maxY, minY, hl: hlr,
-    bounds: { x0: bx0, x1: bx1, z0: bz0, z1: bz1 }, flipK };
+    bounds: { x0: bx0, x1: bx1, z0: bz0, z1: bz1 }, flipK, segNode };
   trk.wrapS = s => closed ? ((s % trk.L) + trk.L) % trk.L : clamp(s, 0, trk.L);
   trk.fi = s => { s = trk.wrapS(s); const f = s / DS; let i = Math.floor(f); let fr = f - i; if (i >= n - 1) { if (closed) { i = n - 1; } else { i = n - 2; fr = 1; } } return [i, idx(i + 1), fr]; };
   trk.get = (arr, s) => { const [i, j2, f] = trk.fi(s); return arr[i] + (arr[j2] - arr[i]) * f; };
   trk.typeAt = s => trk.type[trk.fi(s)[0]];
   trk.at = s => trk.fi(s)[0];
   trk.blocks = computeBlocks(trk);
+  classifyTunnels(trk, nodes);
   return trk;
+}
+
+// ---------- tunnels ----------
+// Each track sample is classed against the ground and water reported by the 3D world (setEnvProbe):
+// underground where the ground covers the riders' clearance circle, underwater where it dips into a lake or the sea,
+// an open trench where the rails are below ground but the cover is too thin for a tunnel, or a covered tunnel above
+// ground where the segment is flagged. Without a probe (2D only) the ground is flat at 0 and there is no water.
+const TUN = { NONE: 0, ABOVE: 1, UNDER: 2, WATER: 3, TRENCH: 4 };
+const TUN_NAME = ['', 'Covered', 'Underground', 'Underwater', 'Open cut'];
+const TUN_DEFAULT = { style: 'wood', shell: 'acrylic', fit: 'standard', light: 'work', fog: false, spray: false, dust: false, echo: true, sfx: 'none' };
+const TUN_FIT = { tight: 0.3, standard: 0.55, roomy: 0.95 };
+const TUN_OPTS = { style: ['wood', 'metal', 'wire'], shell: ['acrylic', 'metal'], fit: ['tight', 'standard', 'roomy'], light: ['black', 'work', 'neon'],
+  fog: [true, false], spray: [true, false], dust: [true, false], echo: [true, false], sfx: ['none', 'monster', 'scifi', 'thunder'] };
+function cleanTun(t) { if (!t || typeof t !== 'object') return null; const o = {}; for (const k in TUN_OPTS) if (TUN_OPTS[k].includes(t[k]) && t[k] !== TUN_DEFAULT[k]) o[k] = t[k]; return Object.keys(o).length ? o : null; }
+let envProbe = { ground: () => 0, water: () => null };
+function setEnvProbe(p) { envProbe = p || { ground: () => 0, water: () => null }; }
+function tunnelEnvelope() { const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2]; return { uc: (u0 + u1) / 2, rc: Math.hypot(hw, (u1 - u0) / 2) }; }
+function classifyTunnels(trk, nodes) {
+  const n = trk.n, kind = new Uint8Array(n), env = tunnelEnvelope(), ground = new Float32Array(n), water = new Float32Array(n).fill(NaN);
+  const crit = new Float32Array(n * 3); // [cover above clearance circle, depth of circle bottom below water, rails below ground]
+  for (let k = 0; k < n; k++) {
+    const x = trk.px[k], y = trk.py[k], z = trk.pz[k];
+    const cy = y + trk.uy[k] * env.uc, top = cy + env.rc, bot = cy - env.rc;
+    const g = envProbe.ground(x, z), wl = envProbe.water(x, z);
+    ground[k] = g; if (wl != null) water[k] = wl;
+    crit[k * 3] = g - (top + 1.2); crit[k * 3 + 1] = wl != null ? wl - bot : -1; crit[k * 3 + 2] = g - (y - 0.4);
+    if (k < 40 && trk.type[k] === T_STATION) continue;
+    if (crit[k * 3] > 0) kind[k] = TUN.UNDER;
+    else if (wl != null && crit[k * 3 + 1] > 0) kind[k] = TUN.WATER;
+    else if (crit[k * 3 + 2] > 0) kind[k] = TUN.TRENCH;
+    else if (trk.tunnel[k]) kind[k] = TUN.ABOVE;
+  }
+  // drop slivers shorter than 3 m (they flicker in and out on gentle ground)
+  for (let pass = 0; pass < 2; pass++) { let k = 0; while (k < n) { let e = k; while (e + 1 < n && kind[e + 1] === kind[k]) e++; if (e - k + 1 < 6 && k > 0 && e < n - 1) { const fill = kind[k - 1]; for (let q = k; q <= e; q++) kind[q] = fill; } k = e + 1; } }
+  const enclosed = kd => kd === TUN.ABOVE || kd === TUN.UNDER || kd === TUN.WATER;
+  const runs = []; { let k = 0; while (k < n) { let e = k; while (e + 1 < n && kind[e + 1] === kind[k]) e++; if (kind[k]) runs.push({ a: k, b: e, kind: kind[k] }); k = e + 1; } }
+  // enclosures: contiguous covered/underground/underwater runs share one set of tunnel properties
+  const tunnels = [];
+  for (const r of runs) {
+    if (!enclosed(r.kind)) continue;
+    const last = tunnels[tunnels.length - 1];
+    if (last && last.b + 1 >= r.a) { last.b = r.b; last.parts.push(r); } else tunnels.push({ a: r.a, b: r.b, parts: [r] });
+  }
+  for (const tn of tunnels) {
+    let props = null; const nodeSet = new Set();
+    for (let k = tn.a; k <= tn.b; k++) { const ni = trk.segNode[k]; nodeSet.add(ni); if (!props && nodes[ni] && nodes[ni].tun) props = nodes[ni].tun; }
+    tn.props = { ...TUN_DEFAULT, ...(props || {}) }; tn.nodes = [...nodeSet];
+    tn.margin = TUN_FIT[tn.props.fit] ?? TUN_FIT.standard; tn.rin = env.rc + tn.margin; tn.rout = tn.rin + 0.35;
+    tn.len = (tn.b - tn.a + 1) * DS; tn.kinds = [...new Set(tn.parts.map(p => p.kind))];
+    // portals at the exact sample where the criterion that closes the tunnel crosses zero, aligned with the track
+    tn.portals = [];
+    const at = (k, ci) => { const k0 = Math.max(0, k - 1), v0 = crit[k0 * 3 + ci], v1 = crit[k * 3 + ci]; const f = v1 !== v0 ? clamp(v0 / (v0 - v1), 0, 1) : 0; return (k0 + f) * DS; };
+    const ci = kd => kd === TUN.UNDER ? 0 : kd === TUN.WATER ? 1 : -1;
+    const first = tn.parts[0], lastP = tn.parts[tn.parts.length - 1];
+    tn.portals.push({ s: ci(first.kind) >= 0 && tn.a > 0 ? at(tn.a, ci(first.kind)) : tn.a * DS, kind: first.kind, entry: true, k: tn.a });
+    for (let i = 1; i < tn.parts.length; i++) tn.portals.push({ s: tn.parts[i].a * DS, kind: tn.parts[i].kind, from: tn.parts[i - 1].kind, k: tn.parts[i].a, inner: true });
+    tn.portals.push({ s: ci(lastP.kind) >= 0 && tn.b < n - 1 ? at(tn.b + 1, ci(lastP.kind)) : (tn.b + 1) * DS, kind: lastP.kind, entry: false, k: tn.b });
+  }
+  trk.tunKind = kind; trk.tunRuns = runs; trk.tunnels = tunnels; trk.tunEnv = env; trk.ground = ground; trk.waterY = water;
+  trk.tunnelAt = s => { const k = trk.at(s); return tunnels.find(t => k >= t.a && k <= t.b) || null; };
 }
 
 // ---------- fast plan view of node positions (for the top-down editor) ----------
@@ -530,8 +592,40 @@ function analyzeTrack(trk) {
   }
   // fill gaps (samples skipped at high speed) so colour maps are continuous
   for (const arr of [spd, vgA, lgA]) { let last = NaN; for (let k = 0; k < n; k++) { if (isNaN(arr[k])) { if (!isNaN(last) && k > 0 && !isNaN(arr[k - 1])) { let e = k; while (e < n && isNaN(arr[e])) e++; if (e < n && e - k < 8) for (let q = k; q < e; q++) arr[q] = arr[k - 1]; } } else last = arr[k]; } }
-  return { spd, vg: vgA, lg: lgA, maxV, maxVG, minVG, maxLG, maxVGs, minVGs, maxLGs, duration: t, stallS, completes, airtime, maxAcc, inverted, inversions: countInversions(trk) };
+  const res = { spd, vg: vgA, lg: lgA, maxV, maxVG, minVG, maxLG, maxVGs, minVGs, maxLGs, duration: t, stallS, completes, airtime, maxAcc, inverted, inversions: countInversions(trk) };
+  res.ratings = rideRatings(trk, res);
+  return res;
 }
+// ---------- ride ratings (excitement, intensity, nausea on a 0-10 style scale) ----------
+// Tunnels add excitement for their length, more when the walls pass close to the riders (near-miss) and when they
+// are dark or lit with strobes; every entrance portal adds a short intensity and nausea spike for the sudden change
+// of light and surroundings, scaled by the speed the train enters at.
+function rideRatings(trk, an) {
+  const kmh = an.maxV * 3.6, body = v => TRAIN.prone ? -v : v;
+  const hi = Math.max(body(an.maxVG), body(an.minVG)), lo = Math.min(body(an.maxVG), body(an.minVG));
+  let drop = 0, peak = -1e9; for (let k = 0; k < trk.nm; k++) { peak = Math.max(peak, trk.py[k]); drop = Math.max(drop, peak - trk.py[k]); }
+  let E = 1.1 + kmh * 0.017 + Math.min(an.airtime, 10) * 0.22 + Math.min(an.inversions, 8) * 0.42 + Math.min(trk.Lm / 1000, 2) * 0.6 + Math.min(drop / 30, 3) * 0.4 + Math.min(an.maxLG, 1.5) * 0.3;
+  let I = 0.6 + Math.max(0, hi - 1) * 0.75 + Math.max(0, -lo) * 1.1 + an.maxLG * 1.1 + an.inversions * 0.12 + kmh / 110;
+  let N = 0.4 + an.maxLG * 1.3 + an.inversions * 0.28 + Math.max(0, -lo) * 0.6 + an.inverted / 40 + (TRAIN_SPIN() ? 1.8 : 0);
+  const tun = { count: 0, length: 0, nearMiss: 0, bonus: 0, portals: [] };
+  let spike = 0;
+  for (const tn of trk.tunnels || []) {
+    if (tn.a >= trk.nm) continue;
+    let vSum = 0, vN = 0; for (let k = tn.a; k <= Math.min(tn.b, trk.nm - 1); k++) if (isFinite(an.spd[k])) { vSum += an.spd[k]; vN++; }
+    const vAvg = vN ? vSum / vN : 0, near = clamp((1.0 - tn.margin) / 0.7, 0, 1), lightF = tn.props.light === 'black' ? 1.15 : tn.props.light === 'neon' ? 1.1 : 1;
+    const b = (tn.len / 120) * (0.6 + 0.8 * near) * clamp(vAvg / 22, 0.3, 1.3) * lightF;
+    tun.count++; tun.length += tn.len; tun.nearMiss = Math.max(tun.nearMiss, near); tun.bonus += b;
+    const kIn = Math.min(trk.nm - 1, Math.round(tn.portals[0].s / DS)), vIn = isFinite(an.spd[kIn]) ? an.spd[kIn] : vAvg;
+    const sp = 0.03 * (vIn / 10) * (tn.props.light === 'black' ? 1.8 : tn.props.light === 'neon' ? 1.5 : 1);
+    spike += sp; tun.portals.push({ s: tn.portals[0].s, v: vIn, spike: sp });
+  }
+  tun.bonus = Math.min(tun.bonus, 2.5); E += tun.bonus;
+  const mult = 1 + Math.min(spike, 0.6); I *= mult; N *= 1 + Math.min(spike * 0.8, 0.5);
+  if (an.stallS != null) { E *= 0.5; }
+  return { excitement: E, intensity: I, nausea: N, tunnels: tun, portalMult: mult };
+}
+const TRAIN_SPIN = () => !!TRAIN.spin;
+function ratingLabel(x) { return x < 2 ? 'Low' : x < 4 ? 'Medium' : x < 6 ? 'High' : x < 8 ? 'Very high' : 'Extreme'; }
 function countInversions(trk) {
   let c = 0, inv = false;
   for (let k = 0; k < trk.nm; k++) { if (!inv && trk.uy[k] < -0.35) { inv = true; c++; } else if (inv && trk.uy[k] > 0.2) inv = false; }
@@ -541,17 +635,20 @@ function countInversions(trk) {
 // ---------- clearance: track sections that hit each other, and safe crossovers ----------
 function trackClearance(trk) {
   const n = trk.n, step = 2, cell = 4, env = TRAIN.envR, need = 2 * env + 0.2, minDs = Math.max(26, 8 * env);
-  const cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n);
+  const cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n), rad = new Float32Array(n).fill(env);
   for (let k = 0; k < n; k++) { cx[k] = trk.px[k] + trk.ux[k] * TRAIN.envOff; cy[k] = trk.py[k] + trk.uy[k] * TRAIN.envOff; cz[k] = trk.pz[k] + trk.uz[k] * TRAIN.envOff; }
+  // tunnel walls take up their own outer radius around the clearance circle, so another section can't pass through them
+  if (trk.tunnels) for (const tn of trk.tunnels) for (let k = tn.a; k <= tn.b; k++) { const uc = trk.tunEnv.uc; cx[k] = trk.px[k] + trk.ux[k] * uc; cy[k] = trk.py[k] + trk.uy[k] * uc; cz[k] = trk.pz[k] + trk.uz[k] * uc; rad[k] = tn.rout; }
+  const cellR = Math.max(cell, Math.ceil(Math.max(...rad) * 2 / cell) * cell);
   const grid = new Map(); const key = (a, b, c) => a + ',' + b + ',' + c;
-  for (let k = 0; k < n; k += step) { const kk = key(Math.floor(cx[k] / cell), Math.floor(cy[k] / cell), Math.floor(cz[k] / cell)); let a = grid.get(kk); if (!a) grid.set(kk, a = []); a.push(k); }
+  for (let k = 0; k < n; k += step) { const kk = key(Math.floor(cx[k] / cellR), Math.floor(cy[k] / cellR), Math.floor(cz[k] / cellR)); let a = grid.get(kk); if (!a) grid.set(kk, a = []); a.push(k); }
   const sep = (a, b) => { let d = Math.abs(a - b) * DS; if (trk.closed) d = Math.min(d, trk.L - d); return d; };
   const hits = [];
   for (let k = 0; k < n; k += step) {
-    const gx = Math.floor(cx[k] / cell), gy = Math.floor(cy[k] / cell), gz = Math.floor(cz[k] / cell);
+    const gx = Math.floor(cx[k] / cellR), gy = Math.floor(cy[k] / cellR), gz = Math.floor(cz[k] / cellR);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let l = -1; l <= 1; l++) {
       const a = grid.get(key(gx + i, gy + j, gz + l)); if (!a) continue;
-      for (const q of a) { if (q <= k || sep(k, q) < minDs) continue; const d = Math.hypot(cx[k] - cx[q], cy[k] - cy[q], cz[k] - cz[q]); if (d < need) hits.push([k, q, d]); }
+      for (const q of a) { if (q <= k || sep(k, q) < minDs) continue; const d = Math.hypot(cx[k] - cx[q], cy[k] - cy[q], cz[k] - cz[q]); if (d < rad[k] + rad[q] + 0.2) hits.push([k, q, d - (rad[k] + rad[q] - 2 * env)]); }
     }
   }
   // cluster hits along the track

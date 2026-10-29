@@ -334,6 +334,13 @@ input.json.one { height: 34px; width: 100%; box-sizing: border-box; margin-top: 
 @media (max-width: 1100px) { #legend { top: 52px; right: auto; left: 10px; } }
 .chk.alerts { margin-top: 10px; font-size: 12px; }
 
+/* tunnel properties */
+.tunsum { font-size: 12px; color: var(--muted); margin: -2px 0 12px; line-height: 1.45; }
+.tunsum b { color: var(--text); font-weight: 600; }
+.tunsum i { font-style: normal; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 5px 0 1px; vertical-align: -1px; }
+.tunchecks { grid-template-columns: repeat(3, auto); justify-content: start; gap: 6px 14px; }
+#tunSec .seg button { padding: 0 6px; font-size: 12.5px; }
+
 </style>
 </head>
 <body>
@@ -439,7 +446,7 @@ input.json.one { height: 34px; width: 100%; box-sizing: border-box; margin-top: 
         <div class="field" id="fSysRow" hidden><div class="row"><label for="fSys">Launch system</label></div><select class="btn wide sel" id="fSys"><option value="lsm">LSM (about 1 G)</option><option value="hydraulic">Hydraulic (about 1.6 G)</option><option value="pneumatic">Pneumatic (about 2.4 G)</option></select></div>
         <div class="field" id="fHoldRow" hidden><div class="row"><label for="fHold">Hold the train for</label><span><input type="number" id="fHoldn" step="0.5" min="0" max="20" aria-label="Hold time in seconds"><span class="unit">s</span></span></div><input type="range" id="fHold" min="0" max="10" step="0.5"></div>
         <div class="checks">
-          <label class="chk"><input type="checkbox" id="fTunnel"> Tunnel over this segment</label>
+          <label class="chk"><input type="checkbox" id="fTunnel"> Covered tunnel over this segment</label>
           <label class="chk" title="Advanced: at a vertical point, the track reverses direction and the riders' frame flips (used by Immelmanns and dive loops)"><input type="checkbox" id="fFlip"> Direction flip (vertical point)</label>
         </div>
         <div class="btnrow">
@@ -448,6 +455,26 @@ input.json.one { height: 34px; width: 100%; box-sizing: border-box; margin-top: 
           <button class="btn" id="bAppend" title="Add a node at the end of the track">Append node</button>
         </div>
       </div>
+    </section>
+    <section class="sec" id="tunSec" hidden>
+      <h2>Tunnel properties <span class="tag" id="tunTag"></span></h2>
+      <p class="tunsum" id="tunSum"></p>
+      <div class="editable">
+        <div class="field"><div class="row"><label>Interior lighting</label></div>
+          <div class="seg wide" id="tunLight" role="group" aria-label="Interior lighting"><button data-v="black">Pitch black</button><button data-v="work">Work lights</button><button data-v="neon" title="Neon strips with colour-cycling strobes">Neon</button></div></div>
+        <div class="field" id="tunStyleRow"><div class="row"><label>Covered shell</label></div>
+          <div class="seg wide" id="tunStyle" role="group" aria-label="Covered tunnel shell"><button data-v="wood">Timber</button><button data-v="metal">Corrugated</button><button data-v="wire">Wireframe</button></div></div>
+        <div class="field" id="tunShellRow"><div class="row"><label>Underwater tube</label></div>
+          <div class="seg wide" id="tunShell" role="group" aria-label="Underwater tube"><button data-v="acrylic">Acrylic glass</button><button data-v="metal">Bolted steel</button></div></div>
+        <div class="field"><div class="row"><label>Wall clearance</label><span class="unit" id="tunGap" title="Smallest gap between the walls and the riders' reach envelope"></span></div>
+          <div class="seg wide" id="tunFit" role="group" aria-label="Wall clearance"><button data-v="tight">Tight</button><button data-v="standard">Standard</button><button data-v="roomy">Roomy</button></div></div>
+        <div class="field"><div class="row"><label>Atmosphere</label></div>
+          <div class="checks tunchecks"><label class="chk"><input type="checkbox" id="tunFog"> Fog / mist</label><label class="chk"><input type="checkbox" id="tunSpray"> Water spray</label><label class="chk"><input type="checkbox" id="tunDust"> Dust</label></div></div>
+        <div class="field"><div class="row"><label for="tunSfx">Sound</label></div>
+          <label class="chk"><input type="checkbox" id="tunEcho"> Echo inside the tunnel</label>
+          <select class="btn wide sel" id="tunSfx" aria-label="Sound effect on entry" style="margin-top:8px"><option value="none">No effect on entry</option><option value="monster">Monster roar</option><option value="scifi">Sci-fi zaps</option><option value="thunder">Cave rumble</option></select></div>
+      </div>
+      <p class="hint" id="tunHint"></p>
     </section>
   </aside>
 
@@ -631,7 +658,7 @@ const TRAIN = { cars: 6, carLen: 2.6, massPerCar: 1150, hl: 1.1, envOff: 1.0, en
 function setTrainSpec(spec) { Object.assign(TRAIN, spec || {}); TRAIN.len = TRAIN.cars * TRAIN.carLen; TRAIN.mass = TRAIN.cars * TRAIN.massPerCar; }
 setTrainSpec();
 const PHYS = { mu: 0.0105, drag: 0.00024, brakeDecel: 6.0, trimSpeed: 7.5, stationSpeed: 2.4, transferSpeed: 6.0, stationDecel: 1.8, loadTime: 3.2, blockRelease: 2.6 };
-const LIMITS = { y: [0, 500], x: [-200, 20000], yaw: [-360, 360], roll: [-180, 180] };
+const LIMITS = { y: [-40, 500], x: [-200, 20000], yaw: [-360, 360], roll: [-180, 180] };
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -786,11 +813,11 @@ function buildTrack(nodes, closed) {
     for (let k = 0; k < nm; k++) { const s = Math.min(k * DS, ts[N - 1]); while (si < N - 2 && ts[si + 1] < s) si++; lateral[k] += ts[si + 1] > ts[si] ? splineEval(ts, vs, Mo, si, s) : vs[si]; }
   }
   // segment types and per-sample parameters
-  const typeM = new Uint8Array(nm), sSpd = new Float32Array(nm), sAcc = new Float32Array(nm), sHold = new Float32Array(nm), tunnel = new Uint8Array(nm);
+  const typeM = new Uint8Array(nm), sSpd = new Float32Array(nm), sAcc = new Float32Array(nm), sHold = new Float32Array(nm), tunnel = new Uint8Array(nm), segNodeM = new Uint16Array(nm);
   const segP = nodes.map(segParams);
   for (let k = 0; k < nm; k++) {
     const si = clamp(Math.floor(pu[k]) + 1, 1, N - 1);
-    typeM[k] = TYPE_CODE[nodes[si].type] ?? T_STEEL; sSpd[k] = segP[si].spd; sAcc[k] = segP[si].acc; sHold[k] = segP[si].hold; tunnel[k] = nodes[si].tunnel ? 1 : 0;
+    typeM[k] = TYPE_CODE[nodes[si].type] ?? T_STEEL; sSpd[k] = segP[si].spd; sAcc[k] = segP[si].acc; sHold[k] = segP[si].hold; tunnel[k] = nodes[si].tunnel ? 1 : 0; segNodeM[k] = si;
   }
   // brake targets per contiguous brake run
   const brakeT = new Float32Array(nm);
@@ -845,6 +872,7 @@ function buildTrack(nodes, closed) {
   const brake = new Float32Array(n); brake.set(brakeT);
   const segSpd = new Float32Array(n); segSpd.set(sSpd); const segAcc = new Float32Array(n); segAcc.set(sAcc); const segHold = new Float32Array(n); segHold.set(sHold);
   const tun = new Uint8Array(n); tun.set(tunnel);
+  const segNode = new Uint16Array(n); segNode.set(segNodeM); for (let k = nm; k < n; k++) segNode[k] = N - 1;
   const rollA = new Float32Array(n); rollA.set(roll);
   const headA = new Float32Array(n); headA.set(heading);
   const profX = new Float32Array(n), profY = new Float32Array(n), uArr = new Float32Array(n);
@@ -897,14 +925,75 @@ function buildTrack(nodes, closed) {
 
   const trk = { n, nm, closed, L, Lm, prof, nodeS, px: px3, py: py3, pz: pz3, hx: hx3, hy: hy3, hz: hz3, tx, ty, tz, ux, uy, uz, rx, ry, rz, kx, ky, kz,
     type, brake, segSpd, segAcc, segHold, tunnel: tun, roll: rollA, heading: headA, profX, profY, u: uArr, stationEnd, stationStop, maxY, minY, hl: hlr,
-    bounds: { x0: bx0, x1: bx1, z0: bz0, z1: bz1 }, flipK };
+    bounds: { x0: bx0, x1: bx1, z0: bz0, z1: bz1 }, flipK, segNode };
   trk.wrapS = s => closed ? ((s % trk.L) + trk.L) % trk.L : clamp(s, 0, trk.L);
   trk.fi = s => { s = trk.wrapS(s); const f = s / DS; let i = Math.floor(f); let fr = f - i; if (i >= n - 1) { if (closed) { i = n - 1; } else { i = n - 2; fr = 1; } } return [i, idx(i + 1), fr]; };
   trk.get = (arr, s) => { const [i, j2, f] = trk.fi(s); return arr[i] + (arr[j2] - arr[i]) * f; };
   trk.typeAt = s => trk.type[trk.fi(s)[0]];
   trk.at = s => trk.fi(s)[0];
   trk.blocks = computeBlocks(trk);
+  classifyTunnels(trk, nodes);
   return trk;
+}
+
+// ---------- tunnels ----------
+// Each track sample is classed against the ground and water reported by the 3D world (setEnvProbe):
+// underground where the ground covers the riders' clearance circle, underwater where it dips into a lake or the sea,
+// an open trench where the rails are below ground but the cover is too thin for a tunnel, or a covered tunnel above
+// ground where the segment is flagged. Without a probe (2D only) the ground is flat at 0 and there is no water.
+const TUN = { NONE: 0, ABOVE: 1, UNDER: 2, WATER: 3, TRENCH: 4 };
+const TUN_NAME = ['', 'Covered', 'Underground', 'Underwater', 'Open cut'];
+const TUN_DEFAULT = { style: 'wood', shell: 'acrylic', fit: 'standard', light: 'work', fog: false, spray: false, dust: false, echo: true, sfx: 'none' };
+const TUN_FIT = { tight: 0.3, standard: 0.55, roomy: 0.95 };
+const TUN_OPTS = { style: ['wood', 'metal', 'wire'], shell: ['acrylic', 'metal'], fit: ['tight', 'standard', 'roomy'], light: ['black', 'work', 'neon'],
+  fog: [true, false], spray: [true, false], dust: [true, false], echo: [true, false], sfx: ['none', 'monster', 'scifi', 'thunder'] };
+function cleanTun(t) { if (!t || typeof t !== 'object') return null; const o = {}; for (const k in TUN_OPTS) if (TUN_OPTS[k].includes(t[k]) && t[k] !== TUN_DEFAULT[k]) o[k] = t[k]; return Object.keys(o).length ? o : null; }
+let envProbe = { ground: () => 0, water: () => null };
+function setEnvProbe(p) { envProbe = p || { ground: () => 0, water: () => null }; }
+function tunnelEnvelope() { const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2]; return { uc: (u0 + u1) / 2, rc: Math.hypot(hw, (u1 - u0) / 2) }; }
+function classifyTunnels(trk, nodes) {
+  const n = trk.n, kind = new Uint8Array(n), env = tunnelEnvelope(), ground = new Float32Array(n), water = new Float32Array(n).fill(NaN);
+  const crit = new Float32Array(n * 3); // [cover above clearance circle, depth of circle bottom below water, rails below ground]
+  for (let k = 0; k < n; k++) {
+    const x = trk.px[k], y = trk.py[k], z = trk.pz[k];
+    const cy = y + trk.uy[k] * env.uc, top = cy + env.rc, bot = cy - env.rc;
+    const g = envProbe.ground(x, z), wl = envProbe.water(x, z);
+    ground[k] = g; if (wl != null) water[k] = wl;
+    crit[k * 3] = g - (top + 1.2); crit[k * 3 + 1] = wl != null ? wl - bot : -1; crit[k * 3 + 2] = g - (y - 0.4);
+    if (k < 40 && trk.type[k] === T_STATION) continue;
+    if (crit[k * 3] > 0) kind[k] = TUN.UNDER;
+    else if (wl != null && crit[k * 3 + 1] > 0) kind[k] = TUN.WATER;
+    else if (crit[k * 3 + 2] > 0) kind[k] = TUN.TRENCH;
+    else if (trk.tunnel[k]) kind[k] = TUN.ABOVE;
+  }
+  // drop slivers shorter than 3 m (they flicker in and out on gentle ground)
+  for (let pass = 0; pass < 2; pass++) { let k = 0; while (k < n) { let e = k; while (e + 1 < n && kind[e + 1] === kind[k]) e++; if (e - k + 1 < 6 && k > 0 && e < n - 1) { const fill = kind[k - 1]; for (let q = k; q <= e; q++) kind[q] = fill; } k = e + 1; } }
+  const enclosed = kd => kd === TUN.ABOVE || kd === TUN.UNDER || kd === TUN.WATER;
+  const runs = []; { let k = 0; while (k < n) { let e = k; while (e + 1 < n && kind[e + 1] === kind[k]) e++; if (kind[k]) runs.push({ a: k, b: e, kind: kind[k] }); k = e + 1; } }
+  // enclosures: contiguous covered/underground/underwater runs share one set of tunnel properties
+  const tunnels = [];
+  for (const r of runs) {
+    if (!enclosed(r.kind)) continue;
+    const last = tunnels[tunnels.length - 1];
+    if (last && last.b + 1 >= r.a) { last.b = r.b; last.parts.push(r); } else tunnels.push({ a: r.a, b: r.b, parts: [r] });
+  }
+  for (const tn of tunnels) {
+    let props = null; const nodeSet = new Set();
+    for (let k = tn.a; k <= tn.b; k++) { const ni = trk.segNode[k]; nodeSet.add(ni); if (!props && nodes[ni] && nodes[ni].tun) props = nodes[ni].tun; }
+    tn.props = { ...TUN_DEFAULT, ...(props || {}) }; tn.nodes = [...nodeSet];
+    tn.margin = TUN_FIT[tn.props.fit] ?? TUN_FIT.standard; tn.rin = env.rc + tn.margin; tn.rout = tn.rin + 0.35;
+    tn.len = (tn.b - tn.a + 1) * DS; tn.kinds = [...new Set(tn.parts.map(p => p.kind))];
+    // portals at the exact sample where the criterion that closes the tunnel crosses zero, aligned with the track
+    tn.portals = [];
+    const at = (k, ci) => { const k0 = Math.max(0, k - 1), v0 = crit[k0 * 3 + ci], v1 = crit[k * 3 + ci]; const f = v1 !== v0 ? clamp(v0 / (v0 - v1), 0, 1) : 0; return (k0 + f) * DS; };
+    const ci = kd => kd === TUN.UNDER ? 0 : kd === TUN.WATER ? 1 : -1;
+    const first = tn.parts[0], lastP = tn.parts[tn.parts.length - 1];
+    tn.portals.push({ s: ci(first.kind) >= 0 && tn.a > 0 ? at(tn.a, ci(first.kind)) : tn.a * DS, kind: first.kind, entry: true, k: tn.a });
+    for (let i = 1; i < tn.parts.length; i++) tn.portals.push({ s: tn.parts[i].a * DS, kind: tn.parts[i].kind, from: tn.parts[i - 1].kind, k: tn.parts[i].a, inner: true });
+    tn.portals.push({ s: ci(lastP.kind) >= 0 && tn.b < n - 1 ? at(tn.b + 1, ci(lastP.kind)) : (tn.b + 1) * DS, kind: lastP.kind, entry: false, k: tn.b });
+  }
+  trk.tunKind = kind; trk.tunRuns = runs; trk.tunnels = tunnels; trk.tunEnv = env; trk.ground = ground; trk.waterY = water;
+  trk.tunnelAt = s => { const k = trk.at(s); return tunnels.find(t => k >= t.a && k <= t.b) || null; };
 }
 
 // ---------- fast plan view of node positions (for the top-down editor) ----------
@@ -1130,8 +1219,40 @@ function analyzeTrack(trk) {
   }
   // fill gaps (samples skipped at high speed) so colour maps are continuous
   for (const arr of [spd, vgA, lgA]) { let last = NaN; for (let k = 0; k < n; k++) { if (isNaN(arr[k])) { if (!isNaN(last) && k > 0 && !isNaN(arr[k - 1])) { let e = k; while (e < n && isNaN(arr[e])) e++; if (e < n && e - k < 8) for (let q = k; q < e; q++) arr[q] = arr[k - 1]; } } else last = arr[k]; } }
-  return { spd, vg: vgA, lg: lgA, maxV, maxVG, minVG, maxLG, maxVGs, minVGs, maxLGs, duration: t, stallS, completes, airtime, maxAcc, inverted, inversions: countInversions(trk) };
+  const res = { spd, vg: vgA, lg: lgA, maxV, maxVG, minVG, maxLG, maxVGs, minVGs, maxLGs, duration: t, stallS, completes, airtime, maxAcc, inverted, inversions: countInversions(trk) };
+  res.ratings = rideRatings(trk, res);
+  return res;
 }
+// ---------- ride ratings (excitement, intensity, nausea on a 0-10 style scale) ----------
+// Tunnels add excitement for their length, more when the walls pass close to the riders (near-miss) and when they
+// are dark or lit with strobes; every entrance portal adds a short intensity and nausea spike for the sudden change
+// of light and surroundings, scaled by the speed the train enters at.
+function rideRatings(trk, an) {
+  const kmh = an.maxV * 3.6, body = v => TRAIN.prone ? -v : v;
+  const hi = Math.max(body(an.maxVG), body(an.minVG)), lo = Math.min(body(an.maxVG), body(an.minVG));
+  let drop = 0, peak = -1e9; for (let k = 0; k < trk.nm; k++) { peak = Math.max(peak, trk.py[k]); drop = Math.max(drop, peak - trk.py[k]); }
+  let E = 1.1 + kmh * 0.017 + Math.min(an.airtime, 10) * 0.22 + Math.min(an.inversions, 8) * 0.42 + Math.min(trk.Lm / 1000, 2) * 0.6 + Math.min(drop / 30, 3) * 0.4 + Math.min(an.maxLG, 1.5) * 0.3;
+  let I = 0.6 + Math.max(0, hi - 1) * 0.75 + Math.max(0, -lo) * 1.1 + an.maxLG * 1.1 + an.inversions * 0.12 + kmh / 110;
+  let N = 0.4 + an.maxLG * 1.3 + an.inversions * 0.28 + Math.max(0, -lo) * 0.6 + an.inverted / 40 + (TRAIN_SPIN() ? 1.8 : 0);
+  const tun = { count: 0, length: 0, nearMiss: 0, bonus: 0, portals: [] };
+  let spike = 0;
+  for (const tn of trk.tunnels || []) {
+    if (tn.a >= trk.nm) continue;
+    let vSum = 0, vN = 0; for (let k = tn.a; k <= Math.min(tn.b, trk.nm - 1); k++) if (isFinite(an.spd[k])) { vSum += an.spd[k]; vN++; }
+    const vAvg = vN ? vSum / vN : 0, near = clamp((1.0 - tn.margin) / 0.7, 0, 1), lightF = tn.props.light === 'black' ? 1.15 : tn.props.light === 'neon' ? 1.1 : 1;
+    const b = (tn.len / 120) * (0.6 + 0.8 * near) * clamp(vAvg / 22, 0.3, 1.3) * lightF;
+    tun.count++; tun.length += tn.len; tun.nearMiss = Math.max(tun.nearMiss, near); tun.bonus += b;
+    const kIn = Math.min(trk.nm - 1, Math.round(tn.portals[0].s / DS)), vIn = isFinite(an.spd[kIn]) ? an.spd[kIn] : vAvg;
+    const sp = 0.03 * (vIn / 10) * (tn.props.light === 'black' ? 1.8 : tn.props.light === 'neon' ? 1.5 : 1);
+    spike += sp; tun.portals.push({ s: tn.portals[0].s, v: vIn, spike: sp });
+  }
+  tun.bonus = Math.min(tun.bonus, 2.5); E += tun.bonus;
+  const mult = 1 + Math.min(spike, 0.6); I *= mult; N *= 1 + Math.min(spike * 0.8, 0.5);
+  if (an.stallS != null) { E *= 0.5; }
+  return { excitement: E, intensity: I, nausea: N, tunnels: tun, portalMult: mult };
+}
+const TRAIN_SPIN = () => !!TRAIN.spin;
+function ratingLabel(x) { return x < 2 ? 'Low' : x < 4 ? 'Medium' : x < 6 ? 'High' : x < 8 ? 'Very high' : 'Extreme'; }
 function countInversions(trk) {
   let c = 0, inv = false;
   for (let k = 0; k < trk.nm; k++) { if (!inv && trk.uy[k] < -0.35) { inv = true; c++; } else if (inv && trk.uy[k] > 0.2) inv = false; }
@@ -1141,17 +1262,20 @@ function countInversions(trk) {
 // ---------- clearance: track sections that hit each other, and safe crossovers ----------
 function trackClearance(trk) {
   const n = trk.n, step = 2, cell = 4, env = TRAIN.envR, need = 2 * env + 0.2, minDs = Math.max(26, 8 * env);
-  const cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n);
+  const cx = new Float32Array(n), cy = new Float32Array(n), cz = new Float32Array(n), rad = new Float32Array(n).fill(env);
   for (let k = 0; k < n; k++) { cx[k] = trk.px[k] + trk.ux[k] * TRAIN.envOff; cy[k] = trk.py[k] + trk.uy[k] * TRAIN.envOff; cz[k] = trk.pz[k] + trk.uz[k] * TRAIN.envOff; }
+  // tunnel walls take up their own outer radius around the clearance circle, so another section can't pass through them
+  if (trk.tunnels) for (const tn of trk.tunnels) for (let k = tn.a; k <= tn.b; k++) { const uc = trk.tunEnv.uc; cx[k] = trk.px[k] + trk.ux[k] * uc; cy[k] = trk.py[k] + trk.uy[k] * uc; cz[k] = trk.pz[k] + trk.uz[k] * uc; rad[k] = tn.rout; }
+  const cellR = Math.max(cell, Math.ceil(Math.max(...rad) * 2 / cell) * cell);
   const grid = new Map(); const key = (a, b, c) => a + ',' + b + ',' + c;
-  for (let k = 0; k < n; k += step) { const kk = key(Math.floor(cx[k] / cell), Math.floor(cy[k] / cell), Math.floor(cz[k] / cell)); let a = grid.get(kk); if (!a) grid.set(kk, a = []); a.push(k); }
+  for (let k = 0; k < n; k += step) { const kk = key(Math.floor(cx[k] / cellR), Math.floor(cy[k] / cellR), Math.floor(cz[k] / cellR)); let a = grid.get(kk); if (!a) grid.set(kk, a = []); a.push(k); }
   const sep = (a, b) => { let d = Math.abs(a - b) * DS; if (trk.closed) d = Math.min(d, trk.L - d); return d; };
   const hits = [];
   for (let k = 0; k < n; k += step) {
-    const gx = Math.floor(cx[k] / cell), gy = Math.floor(cy[k] / cell), gz = Math.floor(cz[k] / cell);
+    const gx = Math.floor(cx[k] / cellR), gy = Math.floor(cy[k] / cellR), gz = Math.floor(cz[k] / cellR);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let l = -1; l <= 1; l++) {
       const a = grid.get(key(gx + i, gy + j, gz + l)); if (!a) continue;
-      for (const q of a) { if (q <= k || sep(k, q) < minDs) continue; const d = Math.hypot(cx[k] - cx[q], cy[k] - cy[q], cz[k] - cz[q]); if (d < need) hits.push([k, q, d]); }
+      for (const q of a) { if (q <= k || sep(k, q) < minDs) continue; const d = Math.hypot(cx[k] - cx[q], cy[k] - cy[q], cz[k] - cz[q]); if (d < rad[k] + rad[q] + 0.2) hits.push([k, q, d - (rad[k] + rad[q] - 2 * env)]); }
     }
   }
   // cluster hits along the track
@@ -1341,6 +1465,10 @@ const ELEMENTS = [
   { key: 'invtophat', cat: 'inversions', dir: true, label: 'Inverted top hat', tip: 'Twist inverted on the vertical climb, cross the top upside down, twist out on the way down', gen: (t, c) => genTopHat(t, c, true) },
   { key: 'pretzel', cat: 'inversions', label: 'Pretzel loop', tip: 'Loop entered from the top: dive down, round the bottom, climb back. Built for flying coasters, where riders lie on their backs through it', gen: (t, c) => genPretzel(t, c) },
   { key: 'nonloop', cat: 'inversions', dir: true, label: 'Non-inverting loop', tip: 'Loop that twists on the way up so riders stay upright at the top', gen: (t, c) => genNonInvLoop(t, c) },
+  // ---- tunnels
+  { key: 'covered', cat: 'tunnels', label: 'Covered tunnel', tip: 'A 70 m enclosed section above ground (timber, corrugated metal or futuristic frame)', gen: t => { for (let i = 1; i <= 3; i++) t.to(t.x + 24, t.y, { tunnel: true }); t.to(t.x + 6, t.y, { tunnel: false }); } },
+  { key: 'underdive', cat: 'tunnels', label: 'Underground dive', tip: 'Plunge below ground into a bored tunnel and climb back out', gen: (t, c) => genUnderDive(t, c, 9) },
+  { key: 'opencut', cat: 'tunnels', label: 'Open-cut dip', tip: 'Dip the rails just below ground level through a walled trench', gen: (t, c) => genUnderDive(t, c, 0.6) },
   // ---- lifts & launches
   { key: 'chainlift', cat: 'power', label: 'Chain lift hill', tip: '35° chain lift to about 45 m', gen: (t, c) => genLift(t, c, 'chain', 35, 45) },
   { key: 'cablelift', cat: 'power', label: 'Cable lift hill', tip: '45° high-speed cable lift to about 70 m', gen: (t, c) => genLift(t, c, 'cable', 45, 70) },
@@ -1358,7 +1486,7 @@ const ELEMENTS = [
 const ELEMENT_BY_KEY = Object.fromEntries(ELEMENTS.map(e => [e.key, e]));
 // keys used by older saves and toolbar buttons
 ELEMENT_BY_KEY.bankleft = { ...ELEMENT_BY_KEY.bank, forceDir: -1 }; ELEMENT_BY_KEY.bankright = { ...ELEMENT_BY_KEY.bank, forceDir: 1 };
-const ELEMENT_CATS = [['hills', 'Hills & drops'], ['turns', 'Turns'], ['inversions', 'Inversions'], ['power', 'Lifts & launches'], ['brakes', 'Brakes']];
+const ELEMENT_CATS = [['hills', 'Hills & drops'], ['turns', 'Turns'], ['inversions', 'Inversions'], ['tunnels', 'Tunnels'], ['power', 'Lifts & launches'], ['brakes', 'Brakes']];
 
 function genVDrop(t, c, angle, hold) {
   const D = clamp(c.y0 - 4, 0, 400);
@@ -1436,6 +1564,16 @@ function genCobra(t, c, d1, d2) {
   for (let i = 1; i <= 7; i++) { const u = i / 7; t.to(x0 + 2 * Lh * u, yt - dz * Math.sin(Math.PI * u), { yaw: i < 7 ? rnd2((i <= 3 ? d1 : d2) * d * 30) : 0, roll: normDeg(R0 + 360 * d * u), align: i < 7 }); }
   t.th = 0;
   halfLoopDown(t, c, y0); t.line(6, 1);
+}
+// dive to depth below ground level (absolute y = -depth), run level, and climb back to the entry height
+function genUnderDive(t, c, depth) {
+  const D = c.y0 + depth; if (D < 3) { t.fail = 'There is not enough height above ground here to dive under it.'; return; }
+  const vb = Math.sqrt(c.v * c.v + 2 * G * D * 0.92), kap = 2.6 * G / (vb * vb);
+  const W = Math.max(Math.PI * Math.sqrt(2 * D / Math.max(kap, 1e-4)), D * 3.2, 40), flat = depth > 2 ? 46 : 30, x0 = t.x, y0 = t.y;
+  for (const u of [0.12, 0.25, 0.37, 0.5]) t.to(x0 + W * u, y0 - D * (1 - Math.cos(2 * Math.PI * u)) / 2);
+  for (const f of [0.5, 1]) t.to(x0 + W * 0.5 + flat * f, y0 - D);
+  const x1 = t.x; for (const u of [0.5, 0.63, 0.75, 0.88, 1]) t.to(x1 + W * (u - 0.5), y0 - D * (1 - Math.cos(2 * Math.PI * u)) / 2);
+  t.th = 0;
 }
 function genDiveLoop(t, c) {
   // rising half roll to the height a half loop needs, then the half loop down to the entry height
@@ -1553,6 +1691,7 @@ function makeElement(kind, base, speedHint, dir = 1) {
   for (const p of t.pts) {
     const nd = { x: rnd2(base.x + p.x), y: rnd2(Math.max(0.5, base.y + p.y)), yaw: p.yaw || 0, roll: Math.round(normDeg(p.roll || 0)), type: p.type || 'steel' };
     if (p.flip) nd.flip = true;
+    if (p.tunnel) nd.tunnel = true;
     if (p.off) nd.off = p.off;
     if (p.lat) nd.lat = p.lat;
     for (const k of ['spd', 'sys', 'hold']) if (p[k] !== undefined) nd[k] = p[k];
@@ -1678,6 +1817,21 @@ const PRESET_DEFS = {
     P(218, 6, -35, A, 'steel', { tunnel: true }), P(236, 5.6, -35, A, 'steel', { tunnel: true }), P(256, 5.2), P(272, 7.2), P(288, 7.6), P(304, 5.4),
     P(322, 5, 45, A), P(342, 4.8, 45, A), P(362, 4.7, 45, A), P(382, 4.6, 45, A), P(402, 4.6),
     P(420, 4.5, 0, 0, 'brakes'), P(442, 4.5, 0, 0, 'brakes') ] }),
+  lake: () => { const L3 = 84.5, L2 = 271, T = { tunnel: true },
+      W = { tun: { shell: 'acrylic', light: 'work', spray: true, echo: true, sfx: 'monster' } },
+      C = { tunnel: true, tun: { style: 'metal', light: 'neon', fog: true, echo: true, sfx: 'scifi' } };
+    // straight drop into the lake: the track runs along the lake bed in an acrylic tube, climbs out through an underground
+    // bore and an open cut, then threads a covered tunnel and a pair of airtime hills on the way home
+    const n = [P(0, 4, 0, 0, 'station'), P(26, 4, 0, 0, 'station'), P(38, 4.4), P(52, 10, 0, 0, 'chain'), P(98, 46, 0, 0, 'chain'), P(108, 48, 0, 0, 'chain'), P(118, 48),
+      P(132, 45, -30, A), P(150, 32, -30, A), P(168, 18, -30, A), P(188, 8),
+      P(210, 3.5), P(240, -2, 0, 0, 'steel', W), P(270, -4.6, 0, 0, 'steel', W), P(300, -5), P(420, -5), P(520, -5), P(550, -3), P(580, 2), P(610, 7), P(640, 9.5),
+      P(660, 9.5, -45, A), P(680, 9.3, -45, A), P(700, 9), P(720 + L3, 8),
+      P(745 + L3, 7, 0, 0, 'steel', C), P(775 + L3, 7, 0, 0, 'steel', C), P(805 + L3, 7, 0, 0, 'steel', C), P(830 + L3, 6.5),
+      P(850 + L3, 6, -45, A), P(872 + L3, 5.5, -45, A), P(894 + L3, 5.2),
+      P(920 + L3, 5), P(948 + L3, 12), P(976 + L3, 6.5), P(1002 + L3, 10), P(1020 + L3, 5.2),
+      P(1045 + L3 + L2 * 0.2, 5), P(1045 + L3 + L2 * 0.35, 13), P(1045 + L3 + L2 * 0.5, 5.5), P(1045 + L3 + L2 * 0.62, 5, 0, 0, 'tires', { spd: 40 }), P(1060 + L3 + L2, 5, 0, 0, 'tires', { spd: 40 }), P(1080 + L3 + L2, 5),
+      P(1100 + L3 + L2, 5, -45, A), P(1122 + L3 + L2, 5, -45, A), P(1144 + L3 + L2, 4.8), P(1170 + L3 + L2, 4.6, 0, 0, 'brakes'), P(1200 + L3 + L2, 4.5, 0, 0, 'brakes')];
+    return { name: 'Lake Tunnel Express', closed: true, style: { train: 'hyper', track: 'tubular', supports: 'steel', paint: 1 }, nodes: n }; },
   blank: () => ({ name: 'Blank Slate (3 Nodes)', closed: false, nodes: [P(0, 4, 0, 0, 'station'), P(30, 4, 0, 0, 'station'), P(60, 4)] })
 };
 function resolvePreset(key) {
@@ -1689,7 +1843,7 @@ function resolvePreset(key) {
   }
   return { name: def.name, closed: def.closed, style: def.style || null, nodes };
 }
-const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'blank'];
+const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'lake', 'blank'];
 const PRESETS = {};
 function getPreset(key) { return PRESETS[key] || (PRESETS[key] = resolvePreset(key)); }
 // ===================== END ELEMENTS =====================
@@ -1764,7 +1918,7 @@ function trainSpecFor(d) {
   const rows = clamp(d.rows || tt.rows, 1, 3), cars = clamp(d.cars || tt.cars, 1, 10);
   const carLen = Math.max(1.8, rows * tt.rowPitch + 0.5);
   const seats = d.seats || tt.seats;
-  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone, box: envBoxFor(d.train, seats) };
+  return { cars, carLen, massPerCar: tt.mass * (rows * seats) / (tt.rows * tt.seats), hl: tt.hl, envOff: tt.envOff, envR: tt.envR, prone: !!tt.prone, spin: !!(tt.spin || tt.spinSeats), box: envBoxFor(d.train, seats) };
 }
 
 const SCENERY = {
@@ -2101,7 +2255,7 @@ function createTrackGfx(THREE, ctx) {
   // The walkway sits outside the train's swept box, with brackets running under it back to the spine and the
   // handrail always on the side away from the track.
   function buildCatwalks(t, below) {
-    const sel = ty => isLiftCode(ty) || ty === T_BLOCK || ty === T_BRAKES || ty === T_LAUNCH;
+    const sel = (ty, k) => (isLiftCode(ty) || ty === T_BLOCK || ty === T_BRAKES || ty === T_LAUNCH) && !(t.tunKind && t.tunKind[k]);  // no walkway inside tunnels or cuts
     const runs = runsOf(t, sel, t.nm); if (!runs.length) return;
     const [hw, u0, u1] = TRAIN.box || [1, -0.35, 2];
     const sp = below ? 1 : -1, w = 0.8, sideOff = Math.max(1.15, hw + 0.15 + w / 2);
@@ -2243,13 +2397,350 @@ function createTrackGfx(THREE, ctx) {
     buildMechanics(t, below);
     buildSupports(t, d.supports || 'steel', below, d.track || 'tubular');
     if (d.catwalks !== false) buildCatwalks(t, below);
-    buildTunnels(t);
     buildStation(t, below);
     buildChevrons(t);
   }
   return { group, build, setColors, updateChevrons, frameAt, get mats() { return mats; }, get station() { return stationInfo; }, set guides(g) { guides = g; } };
 }
 // ===================== END TRACK GRAPHICS =====================
+
+</script>
+<script>
+// ===================== TUNNELS: covered, underground and underwater tunnels, portals, open cuts, lights, particles =====================
+// Built from trk.tunnels / trk.tunRuns (classified in core.js). Everything is sized from the train's clearance circle
+// (trk.tunEnv) plus the wall clearance chosen for each tunnel, so no train type can touch the walls.
+function createTunnelGfx(THREE, ctx) {
+  const V3 = THREE.Vector3;
+  const group = new THREE.Group(); group.name = 'tunnels';
+  const stencilGroup = new THREE.Group(); stencilGroup.name = 'tunnel-stencil';
+  let mats = null, trk = null, tunnels = [], footprints = [], animated = [], insideCells = new Map(), blockCells = new Map(), gap = Infinity;
+  const timeU = { value: 0 };
+  const up = new V3(0, 1, 0);
+
+  // ---------- procedural textures ----------
+  const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  function normalFrom(src, strength) {
+    const w = src.width, h = src.height, g = src.getContext('2d'), d = g.getImageData(0, 0, w, h).data;
+    const out = canvas(w, h), og = out.getContext('2d'), img = og.createImageData(w, h);
+    const H = (x, y) => d[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength, l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+      img.data[i] = (-dx / l * 0.5 + 0.5) * 255; img.data[i + 1] = (-dy / l * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+    }
+    og.putImageData(img, 0, 0); return out;
+  }
+  function noiseFill(g, w, h, base, amp, blobs) {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < blobs; i++) { const r = 2 + Math.random() * 30, v = Math.round((Math.random() - 0.5) * amp); g.fillStyle = `rgba(${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${Math.abs(v) / 255 * 0.5})`; g.beginPath(); g.arc(Math.random() * w, Math.random() * h, r, 0, 7); g.fill(); }
+    const img = g.getImageData(0, 0, w, h); for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * amp * 0.5; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; } g.putImageData(img, 0, 0);
+  }
+  function makeTex() {
+    const T = {};
+    // concrete liner: segment ring joints, panel seams, bolt pockets and water stains
+    const cc = canvas(512, 512), cg = cc.getContext('2d'); noiseFill(cg, 512, 512, '#9a958c', 60, 900);
+    cg.strokeStyle = 'rgba(40,38,34,0.85)'; cg.lineWidth = 5; for (let y = 0; y <= 512; y += 256) { cg.beginPath(); cg.moveTo(0, y); cg.lineTo(512, y); cg.stroke(); }
+    cg.lineWidth = 3; for (let x = 0; x <= 512; x += 128) { cg.beginPath(); cg.moveTo(x, 0); cg.lineTo(x, 512); cg.stroke(); }
+    cg.fillStyle = 'rgba(30,28,26,0.9)'; for (let y = 32; y < 512; y += 256) for (let x = 64; x < 512; x += 128) { cg.beginPath(); cg.arc(x, y, 7, 0, 7); cg.fill(); cg.beginPath(); cg.arc(x, y + 192, 7, 0, 7); cg.fill(); }
+    for (let i = 0; i < 26; i++) { const x = Math.random() * 512, y = Math.random() * 512, gr = cg.createLinearGradient(x, y, x, y + 140); gr.addColorStop(0, 'rgba(60,55,45,0.35)'); gr.addColorStop(1, 'rgba(60,55,45,0)'); cg.fillStyle = gr; cg.fillRect(x, y, 6 + Math.random() * 14, 140); }
+    T.concrete = cc; T.concreteN = normalFrom(cc, 3.5);
+    // timber planks
+    const wc = canvas(512, 256), wg = wc.getContext('2d'); wg.fillStyle = '#7b5532'; wg.fillRect(0, 0, 512, 256);
+    for (let y = 0; y < 256; y += 32) { const sh = 0.75 + Math.random() * 0.4; wg.fillStyle = `rgb(${123 * sh | 0},${85 * sh | 0},${50 * sh | 0})`; wg.fillRect(0, y + 1, 512, 30); for (let i = 0; i < 40; i++) { wg.strokeStyle = `rgba(40,25,10,${0.08 + Math.random() * 0.15})`; wg.lineWidth = 1; wg.beginPath(); const yy = y + 2 + Math.random() * 28; wg.moveTo(0, yy); wg.bezierCurveTo(170, yy + (Math.random() - 0.5) * 6, 340, yy + (Math.random() - 0.5) * 6, 512, yy); wg.stroke(); } wg.fillStyle = 'rgba(20,12,5,0.9)'; wg.fillRect(0, y, 512, 2); for (let x = Math.random() * 120; x < 512; x += 120 + Math.random() * 60) { wg.beginPath(); wg.arc(x, y + 8, 2.2, 0, 7); wg.arc(x, y + 24, 2.2, 0, 7); wg.fill(); } }
+    T.wood = wc; T.woodN = normalFrom(wc, 2.5);
+    // bolted steel plates (underwater conduit)
+    const mc = canvas(256, 256), mg = mc.getContext('2d'); noiseFill(mg, 256, 256, '#5d6670', 40, 300);
+    mg.strokeStyle = 'rgba(25,28,32,0.9)'; mg.lineWidth = 3; mg.strokeRect(2, 2, 252, 252); mg.beginPath(); mg.moveTo(128, 0); mg.lineTo(128, 256); mg.stroke();
+    mg.fillStyle = '#9aa3ab'; for (let i = 12; i < 256; i += 22) for (const x of [10, 118, 138, 246]) { mg.beginPath(); mg.arc(x, i, 3.4, 0, 7); mg.fill(); } for (let i = 12; i < 256; i += 22) for (const y of [10, 246]) { mg.beginPath(); mg.arc(i, y, 3.4, 0, 7); mg.fill(); }
+    T.plate = mc; T.plateN = normalFrom(mc, 4);
+    // corrugated sheet: stripes for roughness and a little rust
+    const rc = canvas(64, 256), rg = rc.getContext('2d'); noiseFill(rg, 64, 256, '#9ea6ab', 30, 60); for (let i = 0; i < 9; i++) { rg.fillStyle = `rgba(140,80,40,${Math.random() * 0.25})`; rg.fillRect(Math.random() * 64, Math.random() * 256, 4 + Math.random() * 10, 20 + Math.random() * 60); }
+    T.sheet = rc;
+    const wrap = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+    return { concrete: wrap(T.concrete, true), concreteN: wrap(T.concreteN), wood: wrap(T.wood, true), woodN: wrap(T.woodN), plate: wrap(T.plate, true), plateN: wrap(T.plateN), sheet: wrap(T.sheet, true) };
+  }
+  function makeMats() {
+    const tex = makeTex(), M = THREE.MeshStandardMaterial;
+    mats = {
+      tex,
+      liner: new M({ map: tex.concrete, normalMap: tex.concreteN, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.92, side: THREE.BackSide }),
+      concrete: new M({ map: tex.concrete, normalMap: tex.concreteN, color: 0xd8d3c8, roughness: 0.9 }),
+      floor: new M({ color: 0x6e6a63, roughness: 0.95, map: tex.concrete }),
+      wood: new M({ map: tex.wood, normalMap: tex.woodN, roughness: 0.85, side: THREE.DoubleSide }),
+      timber: new M({ color: 0x4a311b, roughness: 0.8, map: tex.wood }),
+      sheet: new M({ color: 0xb9c1c6, map: tex.sheet, metalness: 0.75, roughness: 0.42, side: THREE.DoubleSide }),
+      steel: new M({ color: 0x6f7880, metalness: 0.8, roughness: 0.35 }),
+      neonFrame: new M({ color: 0x1a2430, metalness: 0.6, roughness: 0.3, emissive: 0x19d6ff, emissiveIntensity: 1.6 }),
+      plate: new M({ map: tex.plate, normalMap: tex.plateN, metalness: 0.7, roughness: 0.45, side: THREE.DoubleSide }),
+      glass: new THREE.MeshPhysicalMaterial({ color: 0xbfe8f2, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false, clearcoat: 1 }),
+      lamp: new THREE.MeshStandardMaterial({ color: 0xfff1d6, emissive: 0xffe2b0, emissiveIntensity: 2.2 }),
+      grate: new M({ color: 0x5f666d, metalness: 0.7, roughness: 0.5 })
+    };
+    mats.tex.concrete.repeat.set(1, 1);
+    // condensation drips and water caustics on the inside of the acrylic tube (uv.x around, uv.y along in metres)
+    mats.drips = new THREE.ShaderMaterial({
+      uniforms: { uTime: timeU, uTint: { value: new THREE.Color(0x7fd3e6) } }, transparent: true, depthWrite: false, side: THREE.BackSide,
+      vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      fragmentShader: `uniform float uTime; uniform vec3 uTint; varying vec2 vUv; varying vec3 vW;
+        float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+        float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+        void main(){
+          // drips run down the walls (around the tube toward the bottom), each column at its own speed
+          float col = floor(vUv.x * 90.0); float sp = 0.15 + h(vec2(col, 3.0)) * 0.35; float ph = h(vec2(col, 7.0));
+          float y = fract(vUv.y * 0.12 + ph + uTime * 0.0); float run = fract(abs(vUv.x - 0.5) * 2.0 * 4.0 - uTime * sp + ph * 8.0);
+          float drip = smoothstep(0.92, 1.0, run) * step(0.55, h(vec2(col, floor(vUv.y * 0.7)))) * (1.0 - smoothstep(0.35, 0.5, fract(vUv.x * 90.0)) * 0.6);
+          float beads = smoothstep(0.78, 0.86, n(vec2(vUv.x * 160.0, vUv.y * 9.0)));
+          float caustic = pow(n(vW.xz * 0.6 + vec2(uTime * 0.21, -uTime * 0.17)) * n(vW.xz * 0.9 - vec2(uTime * 0.13, uTime * 0.19)), 1.5) * 2.2;
+          vec3 c = uTint * (0.25 + caustic * 0.6) + vec3(0.9, 0.97, 1.0) * (drip * 0.55 + beads * 0.22);
+          gl_FragColor = vec4(c, clamp(0.10 + caustic * 0.12 + drip * 0.45 + beads * 0.25, 0.0, 0.75));
+          #include <colorspace_fragment>
+        }`
+    });
+    // neon light strips: colour cycles along the tunnel and pulses with a strobe
+    mats.neon = new THREE.ShaderMaterial({
+      uniforms: { uTime: timeU }, toneMapped: false, side: THREE.DoubleSide,
+      vertexShader: `varying float vS; void main(){ vS = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `uniform float uTime; varying float vS; vec3 hsv(float h){ vec3 k = clamp(abs(mod(h*6.0+vec3(0,4,2),6.0)-3.0)-1.0,0.0,1.0); return k; }
+        void main(){ float strobe = step(0.82, fract(uTime * 2.3)) * 0.8; vec3 c = hsv(fract(vS * 0.015 - uTime * 0.25)) * (1.4 + strobe * 2.0); gl_FragColor = vec4(c, 1.0); }`
+    });
+    mats.stencilFront = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.FrontSide, stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZFail: THREE.DecrementWrapStencilOp, stencilZPass: THREE.KeepStencilOp, stencilFail: THREE.KeepStencilOp });
+    mats.stencilBack = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.BackSide, stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZFail: THREE.IncrementWrapStencilOp, stencilZPass: THREE.KeepStencilOp, stencilFail: THREE.KeepStencilOp });
+  }
+
+  // ---------- frames: centre of the clearance circle, kept upright so tunnels stand on the ground ----------
+  let prevUp = new V3(0, 1, 0);
+  function frame(k) {
+    const uc = trk.tunEnv.uc;
+    const c = new V3(trk.px[k] + trk.ux[k] * uc, trk.py[k] + trk.uy[k] * uc, trk.pz[k] + trk.uz[k] * uc);
+    const t = new V3(trk.tx[k], trk.ty[k], trk.tz[k]).normalize();
+    const u = up.clone().addScaledVector(t, -t.y); if (u.lengthSq() < 0.04) u.copy(prevUp).addScaledVector(t, -prevUp.dot(t)); u.normalize(); prevUp.copy(u);
+    const r = new V3().crossVectors(t, u).normalize();
+    return { c, t, u, r };
+  }
+  // sweep a closed or open profile ([x, y] in the frame) along samples a..b
+  function sweep(a, b, prof, opts = {}) {
+    const step = opts.step || 2, np = prof.length, pos = [], nrm = [], uv = [], idx = [], ks = [];
+    for (let k = a; k <= b; k += step) ks.push(k); if (ks[ks.length - 1] !== b) ks.push(b);
+    let perim = [0]; for (let i = 1; i < np; i++) perim.push(perim[i - 1] + Math.hypot(prof[i][0] - prof[i - 1][0], prof[i][1] - prof[i - 1][1]));
+    ks.forEach((k, ri) => {
+      const F = frame(k);
+      for (let i = 0; i < np; i++) {
+        const [x, y] = prof[i]; const p = F.c.clone().addScaledVector(F.r, x).addScaledVector(F.u, y);
+        pos.push(p.x, p.y, p.z);
+        const n = opts.radial ? F.r.clone().multiplyScalar(x).addScaledVector(F.u, y).normalize() : (() => { const i0 = Math.max(0, i - 1), i1 = Math.min(np - 1, i + 1); const dx = prof[i1][0] - prof[i0][0], dy = prof[i1][1] - prof[i0][1]; return F.r.clone().multiplyScalar(dy).addScaledVector(F.u, -dx).normalize(); })();
+        nrm.push(n.x, n.y, n.z); uv.push(opts.uAround ? i / (np - 1) * opts.uAround : perim[i] / (opts.uScale || 2), (k - a) * DS / (opts.vScale || 2));
+      }
+      if (ri > 0) { const segs = opts.closed ? np : np - 1; for (let i = 0; i < segs; i++) { const i2 = (i + 1) % np, o = (ri - 1) * np; idx.push(o + i, o + np + i, o + i2, o + i2, o + np + i, o + np + i2); } }
+    });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+    return geo;
+  }
+  const circle = (r, n, from = 0, to = Math.PI * 2) => { const out = []; for (let i = 0; i <= n; i++) { const a = from + (to - from) * i / n; out.push([Math.cos(a) * r, Math.sin(a) * r]); } return out; };
+  const add = (geo, mat, cast = true, recv = true, parent = group) => { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = recv; parent.add(m); return m; };
+  // local x = right, y = up, z = backward (right-handed, like the train cars)
+  const placeAt = (obj, F, s) => { obj.matrixAutoUpdate = false; obj.matrix.makeBasis(F.r, F.u, F.t.clone().negate()).setPosition(F.c); if (s) obj.matrix.scale(s); return obj; };
+  function instanced(geo, mat, frames, cast = true) {
+    if (!frames.length) return null; const im = new THREE.InstancedMesh(geo, mat, frames.length), m = new THREE.Matrix4();
+    frames.forEach((F, i) => { m.makeBasis(F.r, F.u, F.t.clone().negate()).setPosition(F.c); im.setMatrixAt(i, m); });
+    im.castShadow = cast; im.receiveShadow = true; im.computeBoundingSphere(); group.add(im); return im;
+  }
+
+  // ---------- module shapes for covered tunnels (one segment, instanced along the track) ----------
+  const MOD_LEN = 2.5, MOD_STEP = 2.4;
+  function archShape(R, ripple = 0, sides = 0) {
+    const sh = new THREE.Shape(), pts = [];
+    if (sides) { for (let i = 0; i <= sides; i++) { const a = -Math.PI / 2 + i / sides * Math.PI * 2; pts.push([Math.cos(a) * R, Math.sin(a) * R]); } }
+    else {
+      const wallN = 10; for (let i = 0; i <= wallN; i++) { const y = -R + i / wallN * R; pts.push([R + (ripple ? Math.sin(i * 2.4) * ripple : 0), y]); }
+      const arcN = ripple ? 72 : 24; for (let i = 1; i <= arcN; i++) { const a = i / arcN * Math.PI, rr = R + (ripple ? Math.sin(i * 2.4) * ripple : 0); pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+      for (let i = 1; i <= wallN; i++) { const y = -i / wallN * R; pts.push([-R - (ripple ? Math.sin(i * 2.4) * ripple : 0), y]); }
+    }
+    sh.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) sh.lineTo(pts[i][0], pts[i][1]); sh.closePath();
+    return sh;
+  }
+  function shellGeo(rin, th, len, opts = {}) {
+    const outer = archShape(rin + th, opts.ripple || 0, opts.sides || 0), hole = archShape(rin, opts.ripple || 0, opts.sides || 0);
+    outer.holes.push(new THREE.Path(hole.getPoints()));
+    const g = new THREE.ExtrudeGeometry(outer, { depth: len, bevelEnabled: false, curveSegments: 1, steps: 1 }); g.translate(0, 0, -len / 2); g.computeVertexNormals(); return g;
+  }
+  function mergeGeos(list) {
+    const pos = [], nrm = [], uv = [], idx = []; let off = 0;
+    for (const { geo, m } of list) {
+      const g = m ? geo.clone().applyMatrix4(m) : geo; const pa = g.attributes.position, na = g.attributes.normal, ua = g.attributes.uv;
+      for (let i = 0; i < pa.count; i++) { pos.push(pa.getX(i), pa.getY(i), pa.getZ(i)); nrm.push(na.getX(i), na.getY(i), na.getZ(i)); uv.push(ua ? ua.getX(i) : 0, ua ? ua.getY(i) : 0); }
+      if (g.index) for (let i = 0; i < g.index.count; i++) idx.push(g.index.getX(i) + off); else for (let i = 0; i < pa.count; i++) idx.push(i + off); off += pa.count;
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); return g;
+  }
+  const strut = (a, b, w) => { const d = new V3().subVectors(b, a), len = d.length(); const g = new THREE.BoxGeometry(w, w, len); const m = new THREE.Matrix4().lookAt(a, b, Math.abs(d.y / len) > 0.99 ? new V3(1, 0, 0) : up); m.setPosition(a.clone().lerp(b, 0.5)); return { geo: g, m }; };
+
+  // ---------- build ----------
+  function clear() {
+    for (const g of [group, stencilGroup]) while (g.children.length) { const c = g.children.pop(); c.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+    animated = []; footprints = []; insideCells = new Map(); blockCells = new Map(); gap = Infinity;
+  }
+  function build(t) {
+    if (!mats) makeMats();
+    clear(); trk = t; tunnels = t.tunnels || [];
+    if (!tunnels.length && !(t.tunRuns || []).some(r => r.kind === TUN.TRENCH)) return;
+    const env = t.tunEnv, [hw, u0, u1] = TRAIN.box;
+    const below = (TRAIN_TYPES[ctx.design().train] || {}).mount === 'below' || (TRAIN_TYPES[ctx.design().train] || {}).mount === 'swing';
+    // open cuts first (they also produce the terrain footprints)
+    for (const r of t.tunRuns) if (r.kind === TUN.TRENCH) buildTrench(r, env, below);
+    tunnels.forEach((tn, ti) => {
+      const rin = tn.rin, rout = tn.rout, P = tn.props;
+      for (const part of tn.parts) {
+        const a = Math.max(0, part.a - 1), b = Math.min(t.n - 1, part.b + 1);
+        if (part.kind === TUN.UNDER) buildUnder(a, b, rin, rout, env, below);
+        else if (part.kind === TUN.WATER) buildWater(a, b, rin, rout, P);
+        else if (part.kind === TUN.ABOVE) buildCovered(a, b, rin, P);
+      }
+      buildPortals(tn);
+      buildLights(tn);
+      buildParticles(tn, ti);
+      for (let k = tn.a; k <= tn.b; k += 2) { const F = frame(k); registerCell(insideCells, F.c, { tn, ti, k, c: F.c, rin, kind: t.tunKind[k] }, 6); if (t.tunKind[k] !== TUN.UNDER) registerCell(blockCells, F.c, { c: F.c, r: rout + 0.3 }, 8, true); }
+      // clearance: corners of the train's box at every sample against the inner wall
+      for (let k = tn.a; k <= tn.b; k += 2) {
+        const F = frame(k); let dmax = 0;
+        for (const sx of [-hw, hw]) for (const su of [u0, u1]) { const p = new V3(t.px[k] + t.rx[k] * sx + t.ux[k] * su, t.py[k] + t.ry[k] * sx + t.uy[k] * su, t.pz[k] + t.rz[k] * sx + t.uz[k] * su).sub(F.c); p.addScaledVector(F.t, -p.dot(F.t)); dmax = Math.max(dmax, p.length()); }
+        gap = Math.min(gap, rin - dmax); tn.gap = Math.min(tn.gap ?? Infinity, rin - dmax);
+      }
+    });
+  }
+  function registerCell(map, c, item, cell, flat) { const key = flat ? Math.floor(c.x / cell) + ',' + Math.floor(c.z / cell) : Math.floor(c.x / cell) + ',' + Math.floor(c.y / cell) + ',' + Math.floor(c.z / cell); let a = map.get(key); if (!a) map.set(key, a = []); a.push(item); }
+
+  function buildUnder(a, b, rin, rout, env, below) {
+    // segmented concrete liner, visible from inside; uv: 1 texture repeat per ~2.4 m along and 6 around
+    const ring = circle(rin, 28, -Math.PI / 2, Math.PI * 1.5);
+    add(sweep(a, b, ring, { radial: true, uAround: 6, vScale: 2.4 }), mats.liner, false, true);
+    // walkway floor below the track structure
+    const depth = (STYLE_DEPTH_T[ctx.design().track] || 0.9);
+    const floorY = below ? -(env.rc + 0.05) : -(env.uc + depth + 0.08);
+    if (-floorY < rin - 0.1) { const hwF = Math.sqrt(rin * rin - floorY * floorY) - 0.02; add(sweep(a, b, [[hwF, floorY], [-hwF, floorY]], { uScale: 2.4, vScale: 2.4 }), mats.floor, false, true); }
+  }
+  function buildWater(a, b, rin, rout, P) {
+    const ring = circle(rin + 0.12, 32, -Math.PI / 2, Math.PI * 1.5);
+    if (P.shell === 'metal') {
+      add(sweep(a, b, ring, { radial: true, uAround: 8, vScale: 2.4 }), mats.plate, true, true);
+    } else {
+      add(sweep(a, b, ring, { radial: true, uAround: 1, vScale: 4 }), mats.glass, false, false);
+      const inner = add(sweep(a, b, circle(rin + 0.08, 32, -Math.PI / 2, Math.PI * 1.5), { radial: true, uAround: 1, vScale: 1 }), mats.drips, false, false); inner.renderOrder = 6;
+      // steel hoops every 3 m and a walkway
+      const hoops = []; for (let k = a; k <= b; k += Math.round(3 / DS)) hoops.push(frame(k));
+      instanced(new THREE.TorusGeometry(rin + 0.14, 0.07, 6, 32), mats.steel, hoops);
+    }
+    const fy = -(trk.tunEnv.rc + 0.06), hwF = Math.sqrt(Math.max(0.1, rin * rin - fy * fy)) - 0.05;
+    add(sweep(a, b, [[hwF, fy], [-hwF, fy]], { uScale: 1, vScale: 1 }), mats.grate, false, true);
+    // stencil volume (outer radius, capped) that hides the water surface inside the tube
+    const vol = sweep(a, b, circle(rout + 0.1, 24, 0, Math.PI * 2).slice(0, 24), { closed: true, radial: true, step: 4 });
+    const caps = [a, b].map((k, i) => { const F = frame(k); const g = new THREE.CircleGeometry(rout + 0.1, 24); const m = new THREE.Matrix4().makeBasis(F.r, F.u, F.t.clone().negate()).setPosition(F.c); if (i === 1) m.multiply(new THREE.Matrix4().makeRotationY(Math.PI)); g.applyMatrix4(m); return { geo: g }; });
+    const closed = mergeGeos([{ geo: vol }, ...caps]);
+    const f = new THREE.Mesh(closed, mats.stencilFront), bk = new THREE.Mesh(closed, mats.stencilBack);
+    f.renderOrder = 20; bk.renderOrder = 21; f.frustumCulled = bk.frustumCulled = false; stencilGroup.add(f, bk);
+  }
+  function buildCovered(a, b, rin, P) {
+    const frames = []; for (let s = a * DS + MOD_STEP / 2; s <= b * DS; s += MOD_STEP) frames.push(frame(Math.min(b, Math.round(s / DS))));
+    if (P.style === 'metal') {
+      instanced(shellGeo(rin, 0.06, MOD_LEN, { ripple: 0.035 }), mats.sheet, frames);
+      instanced(shellGeo(rin + 0.06, 0.12, 0.16), mats.steel, frames.filter((f, i) => i % 2 === 0));
+    } else if (P.style === 'wire') {
+      const ring = shellGeo(rin, 0.1, 0.1, { sides: 10 }), struts = [];
+      for (let i = 0; i < 10; i++) { const a0 = -Math.PI / 2 + i / 10 * Math.PI * 2, a1 = -Math.PI / 2 + (i + 1) / 10 * Math.PI * 2, R = rin + 0.05; struts.push(strut(new V3(Math.cos(a0) * R, Math.sin(a0) * R, -MOD_STEP / 2), new V3(Math.cos(a1) * R, Math.sin(a1) * R, MOD_STEP / 2), 0.045)); }
+      instanced(mergeGeos([{ geo: ring }, ...struts]), mats.neonFrame, frames, false);
+    } else {
+      instanced(shellGeo(rin, 0.08, MOD_LEN), mats.wood, frames);
+      instanced(shellGeo(rin + 0.08, 0.16, 0.24), mats.timber, frames.filter((f, i) => i % 2 === 0));
+    }
+  }
+  function buildTrench(r, env, below) {
+    const t = trk, W = Math.max(TRAIN.box[0] + 0.9, env.rc * 0.8 + 0.4), th = 0.35, pos = [], idx = [], nrm = [], uv = [];
+    const a = Math.max(0, r.a - 2), b = Math.min(t.n - 1, r.b + 2);
+    const ground = (x, z) => ctx.terrainHeight(x, z);
+    let row = 0; const quads = [];
+    for (let k = a; k <= b; k++) {
+      const F = frame(k), rail = t.py[k];
+      const floor = Math.min(rail - 0.75, below ? F.c.y - env.rc - 0.3 : rail - 0.75);
+      const L = F.c.clone().addScaledVector(F.r, -W), Rr = F.c.clone().addScaledVector(F.r, W);
+      const gL = ground(L.x, L.z), gR = ground(Rr.x, Rr.z), top = Math.max(gL, gR, floor + 0.6) + 0.25;
+      const pts = [[-W - th, floor - 0.4], [-W - th, top], [-W, top], [-W, floor], [W, floor], [W, top], [W + th, top], [W + th, floor - 0.4]];
+      for (const [x, y] of pts) { const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); nrm.push(0, 1, 0); uv.push(x / 2, k * DS / 2.4); }
+      if (row > 0) for (let i = 0; i < pts.length - 1; i++) { const o = (row - 1) * pts.length; idx.push(o + i, o + i + 1, o + pts.length + i, o + i + 1, o + pts.length + i + 1, o + pts.length + i); }
+      quads.push([F.c.clone().addScaledVector(F.r, -W - th * 0.5), F.c.clone().addScaledVector(F.r, W + th * 0.5), floor]);
+      row++;
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+    const m = add(geo, mats.concrete, true, true); m.material = mats.concrete.clone(); m.material.side = THREE.DoubleSide;
+    for (let i = 0; i < quads.length - 1; i++) footprints.push({ poly: [quads[i][0], quads[i][1], quads[i + 1][1], quads[i + 1][0]], floor: Math.min(quads[i][2], quads[i + 1][2]) });
+  }
+  function buildPortals(tn) {
+    const rin = tn.rin;
+    for (const p of tn.portals) {
+      const k = clamp(Math.round(p.s / DS), 0, trk.n - 1), F = frame(k); F.c.set(trk.get(trk.px, p.s) + trk.get(trk.ux, p.s) * trk.tunEnv.uc, trk.get(trk.py, p.s) + trk.get(trk.uy, p.s) * trk.tunEnv.uc, trk.get(trk.pz, p.s) + trk.get(trk.uz, p.s) * trk.tunEnv.uc);
+      if (p.inner) { placeAt(add(new THREE.TorusGeometry(rin + 0.2, 0.22, 10, 36), mats.steel), F); continue; }
+      if (p.kind === TUN.UNDER || p.kind === TUN.WATER) {
+        // concrete headwall with the bore through it, square to the track
+        const Wd = rin + 1.7, sh = new THREE.Shape(); sh.moveTo(-Wd, -rin - 1.0); sh.lineTo(Wd, -rin - 1.0); sh.lineTo(Wd, rin + 1.6); sh.lineTo(-Wd, rin + 1.6); sh.closePath();
+        sh.holes.push(new THREE.Path(circle(rin + 0.02, 40).map(q => new THREE.Vector2(q[0], q[1]))));
+        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.9, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 1, curveSegments: 1 }); g.translate(0, 0, -0.45);
+        placeAt(add(g, mats.concrete), F);
+        // coping on top
+        const cp = new THREE.BoxGeometry(Wd * 2 + 0.3, 0.25, 1.2); cp.translate(0, rin + 1.72, 0); placeAt(add(cp, mats.concrete), F);
+        if (p.kind === TUN.WATER) placeAt(add(new THREE.TorusGeometry(rin + 0.2, 0.2, 10, 36), mats.steel), F);
+      } else if (p.kind === TUN.ABOVE) {
+        if (tn.props.style === 'wire') placeAt(add(shellGeo(rin + 0.1, 0.25, 0.3, { sides: 10 }), mats.neonFrame, false), F);
+        else { const sh = new THREE.Shape(), Wd = rin + 0.9; sh.moveTo(-Wd, -rin - 0.2); sh.lineTo(Wd, -rin - 0.2); sh.lineTo(Wd, rin + 0.9); sh.lineTo(-Wd, rin + 0.9); sh.closePath(); sh.holes.push(new THREE.Path(archShape(rin + 0.02).getPoints()));
+          const g = new THREE.ExtrudeGeometry(sh, { depth: 0.3, bevelEnabled: false }); g.translate(0, 0, -0.15); placeAt(add(g, tn.props.style === 'metal' ? mats.steel : mats.timber), F); }
+      }
+    }
+  }
+  function buildLights(tn) {
+    const L = tn.props.light, rin = tn.rin;
+    if (L === 'work') {
+      const fr = []; for (let k = tn.a + 6; k <= tn.b; k += Math.round(6 / DS)) { const F = frame(k); for (const sg of [-1, 1]) { const a = Math.PI / 2 + sg * 0.6; fr.push({ c: F.c.clone().addScaledVector(F.r, Math.cos(a) * (rin - 0.08)).addScaledVector(F.u, Math.sin(a) * (rin - 0.08)), r: F.r.clone().applyAxisAngle(F.t, sg * 0.6), u: F.u.clone().applyAxisAngle(F.t, sg * 0.6), t: F.t }); } }
+      instanced(new THREE.BoxGeometry(0.22, 0.08, 1.1), mats.lamp, fr, false);
+    } else if (L === 'neon') {
+      for (const sg of [-1, 1]) { const a = Math.PI / 2 + sg * 1.15, R = rin - 0.04, x = Math.cos(a) * R, y = Math.sin(a) * R, dx = -Math.sin(a) * 0.05, dy = Math.cos(a) * 0.05;
+        const m = add(sweep(tn.a, tn.b, [[x - dx, y - dy], [x + dx, y + dy]], { vScale: 1 }), mats.neon, false, false); m.material = mats.neon; animated.push(m); }
+    }
+  }
+  function buildParticles(tn, ti) {
+    const P = tn.props, kinds = ['fog', 'spray', 'dust'].filter(k => P[k]); if (!kinds.length) return;
+    const n0 = clamp(Math.round(tn.len * 3), 60, ctx.Q().railSeg >= 10 ? 1400 : 700);
+    for (const kind of kinds) {
+      const n = kind === 'fog' ? Math.round(n0 * 0.35) : n0, pos = new Float32Array(n * 3), rnd = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const k = tn.a + Math.floor(Math.random() * (tn.b - tn.a + 1)), F = frame(k), a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * tn.rin * 0.9; const p = F.c.clone().addScaledVector(F.r, Math.cos(a) * r).addScaledVector(F.u, Math.sin(a) * r * (kind === 'fog' ? 0.6 : 1) - (kind === 'fog' ? tn.rin * 0.35 : 0)); pos.set([p.x, p.y, p.z], i * 3); rnd[i] = Math.random(); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aRnd', new THREE.BufferAttribute(rnd, 1));
+      const cfg = { fog: [0xd9dee3, 260, 0.07], spray: [0xbfe6ff, 22, 0.55], dust: [0xe8d2a8, 10, 0.5] }[kind];
+      const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: kind === 'fog' ? THREE.NormalBlending : THREE.AdditiveBlending,
+        uniforms: { uTime: timeU, uCol: { value: new THREE.Color(cfg[0]) }, uSize: { value: cfg[1] }, uAlpha: { value: cfg[2] }, uKind: { value: kinds.indexOf(kind) >= 0 ? ['fog', 'spray', 'dust'].indexOf(kind) : 0 }, uR: { value: tn.rin } },
+        vertexShader: `uniform float uTime, uSize, uKind, uR; attribute float aRnd; varying float vA;
+          void main(){ vec3 p = position; float t = uTime;
+            if (uKind < 0.5) { p.x += sin(t * 0.2 + aRnd * 30.0) * 1.2; p.z += cos(t * 0.17 + aRnd * 20.0) * 1.2; p.y += sin(t * 0.3 + aRnd * 9.0) * 0.15; }
+            else if (uKind < 1.5) { float f = fract(t * (0.6 + aRnd * 0.6) + aRnd * 7.0); p.y += uR * 0.9 - f * uR * 1.8; p.x += sin(aRnd * 40.0 + t) * 0.15; vA = 1.0 - f; }
+            else { p += vec3(sin(t * 0.37 + aRnd * 50.0), sin(t * 0.21 + aRnd * 13.0) * 0.6, cos(t * 0.29 + aRnd * 31.0)) * 0.6; }
+            if (uKind > 1.5 || uKind < 0.5) vA = 0.6 + 0.4 * sin(t + aRnd * 6.28);
+            vec4 mv = modelViewMatrix * vec4(p, 1.0); gl_PointSize = uSize * (1.0 + aRnd) / max(1.0, -mv.z); gl_Position = projectionMatrix * mv; }`,
+        fragmentShader: `uniform vec3 uCol; uniform float uAlpha; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float a = smoothstep(0.5, 0.0, length(d)); gl_FragColor = vec4(uCol, a * uAlpha * vA); }` });
+      const pts = new THREE.Points(g, mat); pts.frustumCulled = false; pts.renderOrder = 7; group.add(pts);
+    }
+  }
+
+  // ---------- runtime ----------
+  function update(dt, time) { timeU.value = time; }
+  function insideAt(p) {
+    const cell = 6, gx = Math.floor(p.x / cell), gy = Math.floor(p.y / cell), gz = Math.floor(p.z / cell); let best = null, bd = 1e9;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (let l = -1; l <= 1; l++) { const a = insideCells.get((gx + i) + ',' + (gy + j) + ',' + (gz + l)); if (!a) continue; for (const it of a) { const d = it.c.distanceTo(p); if (d < it.rin + 0.3 && d < bd) { bd = d; best = it; } } }
+    return best;
+  }
+  // placement grid: true where a covered or underwater tunnel occupies the ground at (x, z)
+  function blocked(x, z, r = 0) {
+    const cell = 8, gx = Math.floor(x / cell), gz = Math.floor(z / cell);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const a = blockCells.get((gx + i) + ',' + (gz + j)); if (!a) continue; for (const it of a) if (Math.hypot(it.c.x - x, it.c.z - z) < it.r + r) return true; }
+    return false;
+  }
+  return { group, stencilGroup, build, update, insideAt, blocked, get footprints() { return footprints; }, get gap() { return gap; }, get tunnels() { return tunnels; }, get hasWater() { return stencilGroup.children.length > 0; } };
+}
+const STYLE_DEPTH_T = { tubular: 0.95, box: 1.2, truss: 1.2, ibox: 0.55, wood: 0.65, flat: 0.5, trough: 0.8 };
+// ===================== END TUNNELS =====================
 
 </script>
 <script>
@@ -2904,7 +3395,11 @@ function createWorld(THREE) {
   const camState = { mode: 'follow', pos: new V3(40, 30, 40), look: new V3(), hS: 0, lookYaw: 0, lookPitch: 0, fov: 70, init: false };
   const tq = new THREE.Quaternion(), tq2 = new THREE.Quaternion(), te = new THREE.Euler(), seatM = new THREE.Matrix4();
   const v1 = new V3(), v2 = new V3(), v3 = new V3(), v4 = new V3();
-  let trackGfx = null, trainGfx = null;
+  let trackGfx = null, trainGfx = null, tunnelGfx = null, tunLight = null, waterPre = null, waterUnder = null, terrainBaseY = null;
+  const tunState = { exp: 1, fogMix: 0, inside: null };
+  const envBase = { exposure: 1, fogColor: new THREE.Color(), fogDensity: 0 };
+  // terrain carving: a top-down mask (white = removed) over the area of any open cuts, read in the terrain shader
+  const carveU = { uCarve: { value: null }, uCarveRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uCarveOn: { value: 0 } };
 
   // ---------- quality tiers ----------
   const TIERS = {
@@ -3064,12 +3559,20 @@ function createWorld(THREE) {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: groundTex, normalMap: groundNrm, normalScale: new THREE.Vector2(0.55, 0.55), roughness: sceneryKey === 'winter' ? 0.75 : 0.96, metalness: 0 });
+    mat.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, carveU);
+      sh.vertexShader = 'varying vec2 vCarveXZ;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vCarveXZ = (modelMatrix * vec4(position, 1.0)).xz;');
+      sh.fragmentShader = 'uniform sampler2D uCarve; uniform vec4 uCarveRect; uniform float uCarveOn; varying vec2 vCarveXZ;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n if (uCarveOn > 0.5) { vec2 cu = (vCarveXZ - uCarveRect.xy) / (uCarveRect.zw - uCarveRect.xy); if (cu.x > 0.0 && cu.y > 0.0 && cu.x < 1.0 && cu.y < 1.0 && texture2D(uCarve, cu).r > 0.5) discard; }');
+    };
     mats.terrain = mat;
     terrainMesh = new THREE.Mesh(geo, mat); terrainMesh.receiveShadow = true; terrainMesh.name = 'terrain';
+    terrainBaseY = Float32Array.from({ length: pos.length / 3 }, (_, i) => pos[i * 3 + 1]);
     scene.add(terrainMesh);
   }
   function buildWater() {
     if (waterMesh) { scene.remove(waterMesh); waterMesh.geometry.dispose(); waterMesh.material.dispose(); waterMesh = null; }
+    if (waterPre) { scene.remove(waterPre); waterPre.material.dispose(); waterPre = null; }
+    if (waterUnder) { scene.remove(waterUnder); waterUnder.material.dispose(); waterUnder = null; }
     const sc = SC(); if (sc.water === 'none') return;
     let geo;
     if (sc.water === 'ocean') { geo = new THREE.PlaneGeometry(12000, 12000); geo.rotateX(-Math.PI / 2); }
@@ -3082,6 +3585,54 @@ function createWorld(THREE) {
     if (sc.water === 'ocean') waterMesh.position.set(VALLEY.cx, WATER_Y, VALLEY.cz); else { waterMesh.position.set(LAKE.x, WATER_Y, LAKE.z); waterMesh.scale.set(1, 1, 1 / 1.35); }
     waterMesh.receiveShadow = true;
     scene.add(waterMesh);
+    // the surface seen from below (from inside an acrylic tube): a bright, fogged sheet that only shows its back face
+    if (!frozen) { waterUnder = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x4fb6c2, side: THREE.BackSide })); waterUnder.position.copy(waterMesh.position); waterUnder.scale.copy(waterMesh.scale); scene.add(waterUnder); }
+    configureWaterStencil();
+  }
+  // Water exclusion inside underwater tubes: the water is drawn into depth first, the tube volumes then count
+  // (z-fail) how many of their walls lie behind each water pixel, and the water colour is only drawn where the count is 0.
+  // This keeps the surface (and its reflections) out of the tubes, also with the camera inside one.
+  function configureWaterStencil() {
+    if (!waterMesh) return;
+    const on = !!(tunnelGfx && tunnelGfx.hasWater);
+    for (const w of [waterMesh, waterUnder]) { if (!w) continue; const m = w.material;
+      m.stencilWrite = on; m.stencilRef = 0; m.stencilFunc = THREE.EqualStencilFunc; m.stencilFail = m.stencilZFail = m.stencilZPass = THREE.KeepStencilOp; m.needsUpdate = true;
+      w.renderOrder = on ? 30 : 0; }
+    if (on && !waterPre) { waterPre = new THREE.Mesh(waterMesh.geometry, new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide })); waterPre.position.copy(waterMesh.position); waterPre.scale.copy(waterMesh.scale); waterPre.renderOrder = 10; scene.add(waterPre); }
+    if (waterPre) waterPre.visible = on;
+  }
+  // ---------- tunnels: build, carve the terrain for open cuts, water mask ----------
+  function buildTunnels(t) {
+    tunnelGfx.build(t);
+    carveTerrain(tunnelGfx.footprints);
+    configureWaterStencil();
+    const want = (t.tunnels || []).length > 0;
+    if (want && !tunLight) { tunLight = new THREE.PointLight(0xffe2b0, 0, 26, 1.6); scene.add(tunLight); }
+    if (!want && tunLight) { scene.remove(tunLight); tunLight = null; }
+  }
+  function carveTerrain(fps) {
+    if (!terrainMesh) return;
+    const geo = terrainMesh.geometry, pos = geo.attributes.position, arr = pos.array; let changed = false;
+    for (let i = 0; i < terrainBaseY.length; i++) if (arr[i * 3 + 1] !== terrainBaseY[i]) { arr[i * 3 + 1] = terrainBaseY[i]; changed = true; }
+    carveU.uCarveOn.value = 0;
+    if (fps.length) {
+      let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const f of fps) for (const p of f.poly) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); }
+      x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+      const S = 1024, cv = document.createElement('canvas'); cv.width = cv.height = S; const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff';
+      const X = x => (x - x0) / (x1 - x0) * S, Z = z => (z - z0) / (z1 - z0) * S;
+      for (const f of fps) { g.beginPath(); f.poly.forEach((p, i) => i ? g.lineTo(X(p.x), Z(p.z)) : g.moveTo(X(p.x), Z(p.z))); g.closePath(); g.fill(); }
+      const tex = new THREE.CanvasTexture(cv); tex.flipY = false; tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      if (carveU.uCarve.value) carveU.uCarve.value.dispose();
+      carveU.uCarve.value = tex; carveU.uCarveRect.value.set(x0, z0, x1, z1); carveU.uCarveOn.value = 1;
+      // lower the heightmap vertices inside each cut so the coarse terrain dips toward the trench floor
+      const inPoly = (x, z, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
+      for (let i = 0; i < pos.count; i++) {
+        const x = arr[i * 3], z = arr[i * 3 + 2]; if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+        for (const f of fps) if (inPoly(x, z, f.poly)) { arr[i * 3 + 1] = Math.min(arr[i * 3 + 1], f.floor - 0.4); changed = true; break; }
+      }
+    }
+    if (changed) { pos.needsUpdate = true; geo.computeVertexNormals(); }
   }
 
   // ---------- sky (Preetham scattering + procedural clouds + stars and moon at night) ----------
@@ -3222,6 +3773,7 @@ function createWorld(THREE) {
     const grey = (fc[0] + fc[1] + fc[2]) / 3; fc = fc.map((v, k) => lerp(v, Math.max(grey * 0.9, shade[k] * 0.55), w.dark * 0.8));
     if (night) fc = [0.025, 0.032, 0.05];
     scene.fog = new THREE.FogExp2(new THREE.Color(fc[0], fc[1], fc[2]), t.fog * w.fog * (sc.water === 'ocean' ? 0.8 : 1));
+    envBase.fogColor.copy(scene.fog.color); envBase.fogDensity = scene.fog.density;
     if (night) {
       const md = skyUniforms.uMoonDir.value;
       sunLight.color.setRGB(0.62, 0.7, 0.9); sunLight.intensity = 0.32 * (1 - w.dark * 0.7); sunDirV = [md.x, md.y, md.z];
@@ -3235,7 +3787,7 @@ function createWorld(THREE) {
       hemiLight.groundColor.setRGB(0.32, 0.3, 0.2); hemiLight.intensity = t.hemiI * (1 + w.dark * 0.35);
       sunDirV = sd;
     }
-    renderer.toneMappingExposure = t.exposure * (1 + w.dark * 0.25);
+    renderer.toneMappingExposure = t.exposure * (1 + w.dark * 0.25); envBase.exposure = renderer.toneMappingExposure;
     for (const l of lampLights) { l.intensity = night ? 40 : (w.dark > 0.6 ? 8 : 0); l.visible = l.intensity > 0; }  // hidden lights cost nothing in the shaders
     for (const h of lampHeads) h.material.emissiveIntensity = night ? 3 : w.dark > 0.6 ? 1.2 : 0.3;
     if (mats.terrain) { mats.terrain.roughness = w.wet ? 0.7 : sceneryKey === 'winter' ? 0.75 : 0.96; }
@@ -3397,7 +3949,7 @@ function createWorld(THREE) {
     const put = (kind, x, z, m, c) => { const key = kind + ':' + Math.floor(x / tile) + ',' + Math.floor(z / tile); let b = buckets.get(key); if (!b) buckets.set(key, b = { kind, mats: [], cols: [] }); b.mats.push(m); b.cols.push(c); };
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new V3(), p = new V3(), col = new THREE.Color(), upv = new V3(0, 1, 0);
     const cx = (t.bounds.x0 + t.bounds.x1) / 2, cz = (t.bounds.z0 + t.bounds.z1) / 2;
-    const okGround = (x, z, h) => h >= WATER_Y + (sc.mountains === 'coast' ? 1.6 : 0.5) && Math.hypot(x - PLAZA.x, z - PLAZA.z) >= PLAZA.r && Math.hypot(x - FERRIS.x, z - FERRIS.z) >= 30;
+    const okGround = (x, z, h) => h >= WATER_Y + (sc.mountains === 'coast' ? 1.6 : 0.5) && Math.hypot(x - PLAZA.x, z - PLAZA.z) >= PLAZA.r && Math.hypot(x - FERRIS.x, z - FERRIS.z) >= 30 && !tunnelGfx.blocked(x, z, 2);
     let placed = 0, tries = 0; const target = Math.round(Q.trees * vg.density);
     const total = vg.conifer + vg.decid + vg.palm + vg.cactus || 1;
     while (placed < target && tries < target * 6) {
@@ -3443,7 +3995,7 @@ function createWorld(THREE) {
     }
     for (let i = 0; i < Q.rocks * (sc.mountains === 'mesa' ? 1.8 : 1); i++) {
       const a = R() * 6.28, r = Math.sqrt(R()) * 2400 + 60; const x = VALLEY.cx + Math.cos(a) * r, z = VALLEY.cz + Math.sin(a) * r; const h = terrainHeight(x, z);
-      if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r || th.near(x, z, 12) < 5 || h < WATER_Y - 1) continue;
+      if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r || th.near(x, z, 12) < 5 || h < WATER_Y - 1 || tunnelGfx.blocked(x, z, 3)) continue;
       const sc0 = (r > 1100 ? 3 + R() * 9 : 0.4 + R() * 1.6); p.set(x, h - sc0 * 0.35, z); q.setFromEuler(te.set(R() * 3, R() * 3, R() * 3)); s.set(sc0 * (0.8 + R() * 0.6), sc0 * (0.5 + R() * 0.4), sc0 * (0.8 + R() * 0.6)); m4.compose(p, q, s);
       const g = 0.8 + R() * 0.35; put('rock', x, z, m4.clone(), vg.snow && R() < 0.6 ? [1.3, 1.32, 1.36] : [g, g * 0.98, g * 0.95]);
     }
@@ -3547,6 +4099,16 @@ function createWorld(THREE) {
       const dir = v2.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
       const want = v3.copy(target).addScaledVector(dir, dist);
       const gy = terrainHeight(want.x, want.z) + 2; if (want.y < gy) want.y = gy;
+      // underground or under the lake the orbit camera would only see the ground or the water surface, so it drops
+      // into the tunnel and chases the train from inside it
+      const kd = trk.tunKind ? trk.tunKind[trk.at(sm)] : 0, buried = kd === TUN.UNDER || kd === TUN.WATER;
+      camState.tw = (camState.tw || 0) + ((buried ? 1 : 0) - (camState.tw || 0)) * (camState.init && camState.mode === 'follow' ? Math.min(1, dt * 3) : 1);
+      if (camState.tw > 0.001) {
+        const uc = trk.tunEnv ? trk.tunEnv.uc : 1, P2 = new V3(), T2 = new V3(), U2 = new V3(), R2 = new V3();
+        trackGfx.frameAt(trk, st.s - TRAIN.len - 6, P2, T2, U2, R2);
+        const chase = P2.addScaledVector(U2, uc + 0.45), look = new V3().copy(P).addScaledVector(U, uc);
+        want.lerp(chase, camState.tw); target.lerp(look, camState.tw);
+      }
       if (!camState.init || camState.mode !== 'follow') camState.pos.copy(want); else camState.pos.lerp(want, 1 - Math.exp(-dt * 4));
       if (!camState.init || camState.mode !== 'follow') camState.look.copy(target); else camState.look.lerp(target, 1 - Math.exp(-dt * 10));
       camera.position.copy(camState.pos); camera.up.set(0, 1, 0); camera.lookAt(camState.look);
@@ -3577,7 +4139,7 @@ function createWorld(THREE) {
   }
   const ctx = { terrainHeight, Q: () => Q, design: () => design, get groundTex() { return groundTex; }, get chainTex() { return chainTex; }, get grateTex() { return grateTex; } };
   function init(canvas, quality, env) {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.shadowMap.enabled = true;
     scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(70, 1, 0.08, 14000);
@@ -3590,12 +4152,13 @@ function createWorld(THREE) {
     groundTextures(); buildMaterials(); GEO = treeGeos();
     trackGfx = createTrackGfx(THREE, { ...ctx, groundTex, chainTex, grateTex });
     trainGfx = createTrains(THREE, { ...ctx, groundTex, frameAt: (...a) => trackGfx.frameAt(...a) });
+    tunnelGfx = createTunnelGfx(THREE, ctx);
     buildSky(); buildTerrain(); buildWater(); buildPark();
-    scene.add(vegGroup, trackGfx.group, trainGfx.group, parkGroup, fxGroup);
+    scene.add(vegGroup, trackGfx.group, trainGfx.group, parkGroup, fxGroup, tunnelGfx.group, tunnelGfx.stencilGroup);
     applyEnvironment();
   }
   function setTrack(t, opts = {}) {
-    trk = t; trackGfx.build(t);
+    trk = t; trackGfx.build(t); buildTunnels(t);
     if (opts.trains !== false) trainGfx.build(design, opts.count || 1);
     if (opts.vegetation !== false) scatterVegetation(t);
   }
@@ -3605,10 +4168,11 @@ function createWorld(THREE) {
     if (TIERS[prev] !== Q) { buildMaterials(); GEO = treeGeos(); buildSky(); buildTerrain(); buildWater(); buildPark(); applyEnvironment(); if (trk) setTrack(trk, { count: trainGfx.count }); }
     return tierResolved;
   }
-  function setEnvironment(env) {
+  // opts.retrack === false: the caller reclassifies the track against the new terrain and calls setTrack itself
+  function setEnvironment(env, opts = {}) {
     const sceneryChanged = env.scenery && env.scenery !== sceneryKey;
     if (env.tod) todKey = env.tod; if (env.weather) weatherKey = env.weather; if (env.scenery) sceneryKey = env.scenery;
-    if (sceneryChanged) { buildMaterials(); GEO = treeGeos(); buildTerrain(); buildWater(); buildPark(); if (trk) { trackGfx.build(trk); scatterVegetation(trk); } }
+    if (sceneryChanged) { buildMaterials(); GEO = treeGeos(); buildTerrain(); buildWater(); buildPark(); if (trk && opts.retrack !== false) { trackGfx.build(trk); buildTunnels(trk); scatterVegetation(trk); } }
     applyEnvironment();
   }
   function resize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); }
@@ -3620,6 +4184,7 @@ function createWorld(THREE) {
     updateCamera(dt, { s: st.s, v: st.v, lg: (forces[view.train || 0] || {}).lg || 0 }, view);
     trainGfx.updateRiders(dt, view, camera);
     trackGfx.guides = guides; trackGfx.updateChevrons(time, st.s, view.mode);
+    updateTunnelAmbience(dt);
     if (chainTex) chainTex.offset.y -= 4.4 * dt / 0.5;
     if (waterNormal) { waterNormal.offset.x += dt * 0.006; waterNormal.offset.y += dt * 0.004; }
     if (ferris) { ferris.wheel.rotation.z += dt * 0.05; for (const g of ferris.gondolas) g.rotation.z = -ferris.wheel.rotation.z; }
@@ -3635,6 +4200,29 @@ function createWorld(THREE) {
     else skyUniforms.uFlash.value = 0;
     updateShadowCam();
   }
+  // inside a tunnel: the eye adapts to the lighting, work lights or neon follow the camera, and from an underwater
+  // tube the world outside fades into blue-green water
+  function updateTunnelAmbience(dt) {
+    tunnelGfx.update(dt, time);
+    const inside = trk && trk.tunnels && trk.tunnels.length ? tunnelGfx.insideAt(camera.position) : null;
+    tunState.inside = inside;
+    const L = inside ? inside.tn.props.light : null, water = inside && inside.kind === TUN.WATER, glass = water && inside.tn.props.shell !== 'metal';
+    const targetExp = !inside ? 1 : L === 'black' ? (glass ? 0.55 : 0.16) : L === 'neon' ? 0.75 : 0.85;
+    tunState.exp += (targetExp - tunState.exp) * Math.min(1, dt * (targetExp < tunState.exp ? 3.5 : 1.6));
+    renderer.toneMappingExposure = envBase.exposure * tunState.exp;
+    tunState.fogMix += ((glass ? 1 : 0) - tunState.fogMix) * Math.min(1, dt * 2.5);
+    if (scene.fog) { scene.fog.color.copy(envBase.fogColor).lerp(UNDERWATER_FOG, tunState.fogMix); scene.fog.density = envBase.fogDensity * (1 + tunState.fogMix * 40) + tunState.fogMix * 0.03; }
+    // under the lake the sky is replaced by the colour of the water column
+    const deep = tunState.fogMix > 0.5; if (skyMesh.visible === deep) { skyMesh.visible = !deep; scene.background = deep ? scene.fog.color : null; }
+    if (tunLight) {
+      if (inside && L !== 'black') {
+        const f = v1.set(0, 0, -1).applyQuaternion(camera.quaternion); tunLight.position.copy(camera.position).addScaledVector(f, 3).add(v2.set(0, 0.6, 0));
+        if (L === 'neon') { const h = (time * 0.25) % 1; tunLight.color.setHSL(h, 1, 0.55); tunLight.intensity = 4 + (((time * 2.3) % 1) > 0.85 ? 16 : 0); }
+        else { tunLight.color.set(0xffe2b0); tunLight.intensity = 28; }
+      } else tunLight.intensity = 0;
+    }
+  }
+  const UNDERWATER_FOG = new THREE.Color(0x0d4a57);
   function render(dt) {
     const boost = skyUniforms.uFlash.value; const hi = hemiLight.intensity;
     if (boost > 0) hemiLight.intensity = hi + boost * 4;
@@ -3649,10 +4237,15 @@ function createWorld(THREE) {
     }
   }
   function stats() { const i = renderer.info; return { fps, pr, tier: tierResolved, tierName: Q.name, tris: i.render.triangles, calls: i.render.calls }; }
-  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight,
+  // ground and water seen by the track classifier (tunnels): the uncarved terrain and the water surface where there is water
+  const probe = {
+    ground: (x, z) => terrainHeight(x, z),
+    water: (x, z) => { const sc = SC(); if (sc.water === 'none') return null; if (sc.water !== 'ocean' && Math.hypot(x - LAKE.x, (z - LAKE.z) * 1.35) > LAKE.r * 1.9) return null; return terrainHeight(x, z) < WATER_Y - 0.2 ? WATER_Y : null; }
+  };
+  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
     setGuides: g => { guides = g; }, TIERS, TOD, TOD_ORDER,
     rescatter: t => scatterVegetation(t), rebuildTrains: count => trainGfx.build(design, count),
-    get camera() { return camera; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },
+    get camera() { return camera; }, get scene() { return scene; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },
     get env() { return { tod: todKey, weather: weatherKey, scenery: sceneryKey }; }, get riderCount() { return trainGfx.riderCount; },
     set onResize(f) { onResizeCb = f; }, set onThunder(f) { onThunder = f; }, get isNight() { return nightF > 0; } };
 }
@@ -3666,6 +4259,7 @@ function createWorld(THREE) {
 function createSound(onError) {
   let ctx = null, master, voiceBus, trackBus, wxBus, reverb, reverbSend, noiseBuf, mode = 0;
   let rumbleG, rumbleF, windG, windF, brakeG, brakeF, bo1, bo2, tyreG, tyreO, launchG, launchO, launchF, rainG, rainF, gustG, gustF;
+  let echo, echoSend, sfxBus, tunCur = null, tunSfxT = 0;
   let nextClack = 0, nextJoint = 0, lastScream = -10, lastWoo = -10, lastLaugh = -10, lastGasp = -10, wasLift = false, launchOn = 0, weatherKind = null;
   const glottal = {};
   function init() {
@@ -3679,6 +4273,10 @@ function createSound(onError) {
     // outdoor reverb: short, diffuse
     reverb = ctx.createConvolver(); reverb.buffer = makeIR(1.6, 2.6); reverbSend = ctx.createGain(); reverbSend.gain.value = 0.22; reverbSend.connect(reverb); reverb.connect(master);
     voiceBus.connect(reverbSend);
+    // tunnel echo: a long, slowly decaying impulse with early slap-back reflections, fed from the track and voice buses
+    echo = ctx.createConvolver(); echo.buffer = makeIR(3.4, 1.9, true); echoSend = ctx.createGain(); echoSend.gain.value = 0; echoSend.connect(echo); echo.connect(master);
+    trackBus.connect(echoSend); voiceBus.connect(echoSend);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master); sfxBus.connect(echoSend);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate); const d = noiseBuf.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
     for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; b0 = 0.99765 * b0 + w * 0.099046; b1 = 0.963 * b1 + w * 0.2965164; b2 = 0.57 * b2 + w * 1.0526913; d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2; }
     // glottal source spectra: pressed (screams) and modal (cheers, laughs)
@@ -3698,9 +4296,11 @@ function createSound(onError) {
     gustF = ctx.createBiquadFilter(); gustF.type = 'bandpass'; gustF.frequency.value = 320; gustF.Q.value = 0.7; gustG = ctx.createGain(); gustG.gain.value = 0; loop().connect(gustF).connect(gustG).connect(wxBus);
     return true;
   }
-  function makeIR(sec, decay) {
+  function makeIR(sec, decay, slap) {
     const len = Math.floor(ctx.sampleRate * sec), b = ctx.createBuffer(2, len, ctx.sampleRate);
-    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 400 ? i / 400 : 1); } }
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * (i < 400 ? i / 400 : 1) * (slap ? 0.55 : 1); }
+      // flutter echoes between parallel tunnel walls
+      if (slap) for (let r = 1; r < 9; r++) { const at = Math.floor(ctx.sampleRate * (0.045 + c * 0.006) * r); if (at < len) for (let j = 0; j < 220; j++) d[at + j] += (Math.random() * 2 - 1) * 0.9 * Math.pow(0.72, r) * (1 - j / 220); } }
     return b;
   }
   let paused = false, suspendT = 0;
@@ -3839,7 +4439,56 @@ function createSound(onError) {
     wasLift = !!p.onLift;
     if (weatherKind === 'rain' && Math.random() < 0.3) noiseBurst(t + Math.random() * 0.1, 0.01, 3000 + Math.random() * 3000, 2, 0.02 + Math.random() * 0.04, 'bandpass', wxBus, 0.001);
   }
-  return { setMode, setPaused, update, cheer, thunder, setWeather, get mode() { return mode; } };
+  // ---------- tunnels: echo while inside, and a one-shot effect placed in 3D space ahead of the train ----------
+  // A source fixed in the tunnel ahead of the riders moves past them at the train's speed: the panner position is
+  // ramped from in front to behind, so with HRTF panning the effect passes by the listener's ear.
+  function spatial(t, side, v, dur) {
+    const pn = ctx.createPanner(); pn.panningModel = 'HRTF'; pn.distanceModel = 'inverse'; pn.refDistance = 2.5; pn.rolloffFactor = 1.2;
+    const d = Math.max(8, Math.min(60, v * 1.4)), x = side * 2.2, sp = Math.max(4, v);
+    if (pn.positionX) { pn.positionX.setValueAtTime(x, t); pn.positionY.setValueAtTime(0.8, t); pn.positionZ.setValueAtTime(-d, t); pn.positionZ.linearRampToValueAtTime(-d + sp * dur, t + dur); }
+    else pn.setPosition(x, 0.8, -d + sp * dur * 0.5);
+    pn.connect(sfxBus); return pn;
+  }
+  function monster(t, v) {
+    const side = Math.random() < 0.5 ? -1 : 1, dur = 2.6, out = spatial(t, side, v, dur);
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(48, t); o.frequency.linearRampToValueAtTime(74, t + 0.5); o.frequency.linearRampToValueAtTime(38, t + dur);
+    const wob = ctx.createOscillator(); wob.frequency.value = 11; const wg = ctx.createGain(); wg.gain.value = 14; wob.connect(wg).connect(o.frequency);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6; lp.frequency.setValueAtTime(260, t); lp.frequency.linearRampToValueAtTime(900, t + 0.45); lp.frequency.linearRampToValueAtTime(200, t + dur);
+    const g = ctx.createGain(); env(g, t, 0.9, 0.25, dur - 0.25); o.connect(lp).connect(g).connect(out);
+    const n = noiseBurst(t + 0.05, dur - 0.3, 420, 2.2, 0.55, 'bandpass', out, 0.2); n.frequency.linearRampToValueAtTime(240, t + dur);
+    for (const x of [o, wob]) { x.start(t); x.stop(t + dur + 0.1); }
+  }
+  function scifi(t, v) {
+    const side = Math.random() < 0.5 ? -1 : 1, out = spatial(t, side, v, 2.2);
+    for (let i = 0; i < 5; i++) {
+      const tt = t + i * 0.28, o = ctx.createOscillator(), m = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.setValueAtTime(1800 - i * 120, tt); o.frequency.exponentialRampToValueAtTime(140, tt + 0.22);
+      m.frequency.value = 63; mg.gain.value = 600; m.connect(mg).connect(o.frequency);
+      env(g, tt, 0.16, 0.004, 0.24); o.connect(g).connect(out); for (const x of [o, m]) { x.start(tt); x.stop(tt + 0.3); }
+    }
+    const hum = ctx.createOscillator(); hum.type = 'sawtooth'; hum.frequency.setValueAtTime(110, t); hum.frequency.linearRampToValueAtTime(330, t + 1.8);
+    const hf = ctx.createBiquadFilter(); hf.type = 'bandpass'; hf.Q.value = 9; hf.frequency.value = 700; const hg = ctx.createGain(); env(hg, t + 0.2, 0.12, 0.6, 1.4); hum.connect(hf).connect(hg).connect(out); hum.start(t); hum.stop(t + 2.3);
+  }
+  function rumble(t, v) {
+    const out = spatial(t, 0, v, 3);
+    for (let i = 0; i < 3; i++) noiseBurst(t + i * 0.45, 1.6 + Math.random(), 60 + Math.random() * 50, 0.9, 0.7 / (1 + i * 0.3), 'lowpass', out, 0.06);
+    noiseBurst(t, 0.18, 2600, 0.8, 0.25, 'bandpass', out, 0.004);
+  }
+  // st: { tn: the enclosure the listener is in (or null), v: train speed }
+  function tunnel(st) {
+    if (!ctx) return; const tn = st && st.tn, t = ctx.currentTime;
+    if (tn !== tunCur) {
+      tunCur = tn || null;
+      const wet = tn && tn.props.echo !== false ? (tn.kinds && tn.kinds.includes(TUN.WATER) && tn.props.shell !== 'metal' ? 0.32 : 0.55) : 0;
+      echoSend.gain.setTargetAtTime(wet, t, tn ? 0.08 : 0.35);
+      wxBus.gain.setTargetAtTime(tn ? 0.15 : 0.8, t, 0.2);   // weather fades out inside
+      if (tn && mode > 0 && !paused && t - tunSfxT > 3) {
+        const v = Math.abs(st.v || 15), sfx = tn.props.sfx;
+        if (sfx === 'monster') { monster(t + 0.35, v); tunSfxT = t; } else if (sfx === 'scifi') { scifi(t + 0.25, v); tunSfxT = t; } else if (sfx === 'thunder') { rumble(t + 0.3, v); tunSfxT = t; }
+      }
+    }
+  }
+  return { setMode, setPaused, update, cheer, thunder, setWeather, tunnel, get mode() { return mode; } };
 }
 // ===================== END AUDIO =====================
 
@@ -3983,7 +4632,7 @@ const Share = (() => {
   let t3d = 0, tVeg = 0, live3dAt = 0;
   function schedule3D(opts = {}) {
     if (!glOK) return; clearTimeout(t3d); clearTimeout(tVeg);
-    t3d = setTimeout(() => { World.setTrack(trk, { vegetation: false, count: trains.length, trains: opts.trains !== false }); tVeg = setTimeout(() => World.rescatter(trk), 650); }, 20);
+    t3d = setTimeout(() => { World.setTrack(trk, { vegetation: false, count: trains.length, trains: opts.trains !== false }); if (trk.tunnels && trk.tunnels.length) { refreshCheck(); refreshTunnel(); } tVeg = setTimeout(() => World.rescatter(trk), 650); }, 20);
   }
   function commit(opts = {}) { rebuild(true, opts); boardDirty = true; refreshInspector(); refreshCheck(); autosave(); schedule3D(); }
   function liveUpdate() {
@@ -4031,13 +4680,14 @@ const Share = (() => {
   function fitBoard() {
     if (!trk) return; const rr = stage.getBoundingClientRect(); if (rr.width > 10) { BV.w = rr.width; BV.h = rr.height; }
     if (S.cam === 'top') return fitTop();
-    let x0 = 1e9, x1 = -1e9, y1 = 12;
-    for (let k = 0; k < trk.nm; k += 2) { x0 = Math.min(x0, trk.profX[k]); x1 = Math.max(x1, trk.profX[k]); y1 = Math.max(y1, trk.profY[k]); }
+    let x0 = 1e9, x1 = -1e9, y1 = 12, y0 = 0;
+    for (let k = 0; k < trk.nm; k += 2) { x0 = Math.min(x0, trk.profX[k]); x1 = Math.max(x1, trk.profX[k]); y1 = Math.max(y1, trk.profY[k]); y0 = Math.min(y0, trk.profY[k] - 1, trk.ground ? trk.ground[k] : 0); }
+    y0 = Math.max(y0, -45);
     const padL = 54, padR = 28, padT = 86, padB = 60;
-    const sw = (BV.w - padL - padR) / Math.max(30, x1 - x0), sh = (BV.h - padT - padB) / (y1 * S.vex + 4);
+    const sw = (BV.w - padL - padR) / Math.max(30, x1 - x0), sh = (BV.h - padT - padB) / ((y1 - y0) * S.vex + 4);
     BV.sc = clamp(Math.min(sw, sh), 0.02, 40);
     BV.ox = padL - x0 * BV.sc + Math.max(0, ((BV.w - padL - padR) - (x1 - x0) * BV.sc) / 2);
-    BV.oy = Math.min(BV.h - padB, padT + (BV.h - padT - padB) / 2 + (y1 * S.vex * BV.sc) / 2 + 10);
+    BV.oy = Math.min(BV.h - padB + y0 * S.vex * BV.sc, padT + (BV.h - padT - padB) / 2 + ((y1 + y0) / 2 * S.vex * BV.sc) + 10);
     boardDirty = true;
   }
   function fitTop() {
@@ -4070,8 +4720,22 @@ const Share = (() => {
     for (let x = xa; x <= xb; x += stepX) { const X = Math.round(sx(x)) + 0.5; const major = Math.round(x / stepX) % 5 === 0; g.strokeStyle = major ? COL.grid2 : COL.grid; g.beginPath(); g.moveTo(X, 0); g.lineTo(X, BV.h); g.stroke(); }
     const yTop = fromScreen(0, 0)[1];
     for (let y = 0; y <= yTop; y += stepY) { const Y = Math.round(sy(y)) + 0.5; const major = Math.round(y / stepY) % 5 === 0; g.strokeStyle = major ? COL.grid2 : COL.grid; g.beginPath(); g.moveTo(0, Y); g.lineTo(BV.w, Y); g.stroke(); }
-    const gy = sy(0); g.fillStyle = 'rgba(28,46,30,0.55)'; g.fillRect(0, gy, BV.w, BV.h - gy);
-    g.strokeStyle = '#3c5a3a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, gy); g.lineTo(BV.w, gy); g.stroke();
+    const gy = sy(0);
+    // the ground (and any water) under the track, as the 3D world reports it
+    const gnd = trk.ground, last = trk.nm - 1;
+    if (gnd) {
+      g.beginPath(); g.moveTo(0, BV.h); g.lineTo(0, sy(gnd[0])); for (let k = 0; k <= last; k += 2) g.lineTo(sx(trk.profX[k]), sy(gnd[k]));
+      g.lineTo(sx(trk.profX[last]), sy(gnd[last])); g.lineTo(BV.w, sy(gnd[last])); g.lineTo(BV.w, BV.h); g.closePath();
+      g.fillStyle = 'rgba(28,46,30,0.55)'; g.fill();
+      g.strokeStyle = '#3c5a3a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, sy(gnd[0])); for (let k = 0; k <= last; k += 2) g.lineTo(sx(trk.profX[k]), sy(gnd[k])); g.lineTo(BV.w, sy(gnd[last])); g.stroke();
+      const wy = trk.waterY; let k = 0;
+      while (k <= last) {
+        if (isNaN(wy[k])) { k++; continue; } let e = k; while (e < last && !isNaN(wy[e + 1])) e++;
+        g.beginPath(); for (let q = k; q <= e; q++) g.lineTo(sx(trk.profX[q]), sy(wy[q])); for (let q = e; q >= k; q--) g.lineTo(sx(trk.profX[q]), sy(gnd[q])); g.closePath();
+        g.fillStyle = 'rgba(40,140,190,0.32)'; g.fill(); g.strokeStyle = 'rgba(110,200,240,0.8)'; g.lineWidth = 1.2; g.beginPath(); for (let q = k; q <= e; q++) g.lineTo(sx(trk.profX[q]), sy(wy[q])); g.stroke();
+        k = e + 1;
+      }
+    } else { g.fillStyle = 'rgba(28,46,30,0.55)'; g.fillRect(0, gy, BV.w, BV.h - gy); }
     g.fillStyle = COL.faint; g.textAlign = 'center';
     for (let x = xa; x <= xb; x += stepX) if (x >= 0) g.fillText(Math.round(x) + ' m', sx(x), gy + 14);
     g.textAlign = 'left';
@@ -4079,9 +4743,7 @@ const Share = (() => {
     const st0 = sx(S.nodes[0].x), st1 = sx(trk.profX[Math.min(trk.nm - 1, Math.round(trk.stationEnd / DS))]);
     g.fillStyle = 'rgba(127,143,160,0.10)'; g.fillRect(Math.min(st0, st1), 0, Math.abs(st1 - st0), gy);
     g.fillStyle = COL.faint; g.fillText('STATION', Math.min(st0, st1) + 4, 14);
-    // tunnels
-    g.fillStyle = 'rgba(120,110,95,0.18)';
-    for (let k = 0; k < trk.nm; k++) if (trk.tunnel[k]) { const X = sx(trk.profX[k]); g.fillRect(X - 1, sy(trk.profY[k] + 3), 2.5, sy(trk.profY[k] - 2) - sy(trk.profY[k] + 3)); }
+    drawTunnelsSide(g);
     g.strokeStyle = 'rgba(160,175,190,0.16)'; g.lineWidth = 1; g.beginPath();
     for (let k = 4; k < trk.nm; k += 20) if (trk.uy[k] > 0.55 && trk.type[k] !== T_STATION) { const X = sx(trk.profX[k]), Y = sy(trk.profY[k] - 0.8); g.moveTo(X, Y); g.lineTo(X, gy); }
     g.stroke();
@@ -4134,6 +4796,37 @@ const Share = (() => {
       g.fillStyle = COL.signal; g.beginPath(); g.arc(sx(trk.profX[kk]), sy(trk.profY[kk]), 5, 0, 7); g.fill();
     }
   }
+  // tunnels in the side view: a shell drawn around the riders' clearance circle, coloured by kind, with the portals
+  const TUN_COL = ['', '201,160,99', '160,150,138', '64,196,230', '150,175,95'];
+  function selTunnel() { if (!trk || !trk.tunnels) return null; return trk.tunnels.find(t => t.nodes.includes(S.sel)) || null; }
+  function drawTunnelsSide(g) {
+    if (!trk.tunRuns) return; const env = trk.tunEnv, sel = selTunnel();
+    for (const r of trk.tunRuns) {
+      if (r.a >= trk.nm) continue; const b = Math.min(r.b, trk.nm - 1), col = TUN_COL[r.kind];
+      const tn = trk.tunnels.find(t => r.a >= t.a && r.a <= t.b), hot = tn && tn === sel;
+      const top = k => trk.profY[k] + env.uc + (tn ? tn.rout : env.rc + 0.5), bot = k => trk.profY[k] - 0.9;
+      g.beginPath(); for (let k = r.a; k <= b; k++) g.lineTo(sx(trk.profX[k]), sy(top(k))); for (let k = b; k >= r.a; k--) g.lineTo(sx(trk.profX[k]), sy(bot(k))); g.closePath();
+      g.fillStyle = `rgba(${col},${r.kind === TUN.TRENCH ? 0.1 : hot ? 0.34 : 0.2})`; g.fill();
+      g.strokeStyle = `rgba(${col},${hot ? 1 : 0.7})`; g.lineWidth = hot ? 2 : 1.3; if (r.kind === TUN.TRENCH) g.setLineDash([4, 4]);
+      g.beginPath(); for (let k = r.a; k <= b; k++) g.lineTo(sx(trk.profX[k]), sy(top(k))); g.stroke(); g.setLineDash([]);
+      const m = Math.round((r.a + b) / 2), w = sx(trk.profX[b]) - sx(trk.profX[r.a]);
+      if (w > 70) { g.fillStyle = `rgba(${col},0.95)`; g.textAlign = 'center'; g.fillText(`${TUN_NAME[r.kind]} ${Math.round((b - r.a + 1) * DS)} m`, sx(trk.profX[m]), sy(top(m)) - 9); }
+    }
+    for (const tn of trk.tunnels) for (const p of tn.portals) {
+      const k = Math.min(trk.nm - 1, Math.round(p.s / DS)); if (p.inner || p.s > trk.Lm) continue;
+      const X = sx(trk.profX[k]), y0 = sy(trk.profY[k] - 1.2), y1 = sy(trk.profY[k] + env.uc + tn.rout + 0.8);
+      g.strokeStyle = `rgba(${TUN_COL[p.kind]},1)`; g.lineWidth = 4; g.beginPath(); g.moveTo(X, y0); g.lineTo(X, y1); g.stroke();
+    }
+  }
+  // water seen from above, sampled once per track/scenery around the layout
+  let waterCache = null;
+  function waterGrid() {
+    if (!trk || !World || !World.probe) return null; const b = trk.bounds, key = [Math.round(b.x0), Math.round(b.x1), Math.round(b.z0), Math.round(b.z1), World.env.scenery].join();
+    if (waterCache && waterCache.key === key) return waterCache;
+    const st = 4, x0 = b.x0 - 120, z0 = b.z0 - 120, nx = Math.ceil((b.x1 - b.x0 + 240) / st), nz = Math.ceil((b.z1 - b.z0 + 240) / st), cells = [];
+    if (nx * nz < 60000) for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) { const x = x0 + i * st, z = z0 + j * st; if (World.probe.water(x, z) != null) cells.push(x, z); }
+    return (waterCache = { key, cells, st });
+  }
   function nodeDot(g, X, Y, nr, sel, n, i) {
     const tc = { station: '#8b9aab', chain: '#e3e8ec', cable: '#e3e8ec', tirelift: '#e3e8ec', launch: '#ff9f43', tires: '#c7b26a', trim: '#d39a52', block: '#e07b3c', brakes: '#d39a52' }[n.type] || COL.vg;
     g.beginPath(); g.arc(X, Y, sel ? nr + 2.5 : nr, 0, Math.PI * 2);
@@ -4168,6 +4861,10 @@ const Share = (() => {
       const mk = trk.nm + Math.floor((trk.n - trk.nm) / 2); g.fillStyle = COL.muted; g.textAlign = 'center'; g.fillText('return transfer ' + Math.round((trk.n - trk.nm) * DS) + ' m', tx(trk.px[mk]), tz(trk.pz[mk]) - 12);
       const lastX = tx(trk.px[trk.n - 1]), lastY = tz(trk.pz[trk.n - 1]); g.beginPath(); g.moveTo(lastX, lastY); g.lineTo(tx(trk.px[0]), tz(trk.pz[0])); g.stroke();
     }
+    const wg = waterGrid(); if (wg && wg.cells.length) { g.fillStyle = 'rgba(40,140,190,0.22)'; const c = wg.cells, w = wg.st * TV.sc + 0.6; for (let i = 0; i < c.length; i += 2) g.fillRect(tx(c[i]) - w / 2, tz(c[i + 1]) - w / 2, w, w); }
+    if (trk.tunRuns) { const sel = selTunnel();
+      for (const r of trk.tunRuns) { const tn = trk.tunnels.find(t => r.a >= t.a && r.a <= t.b), hot = tn && tn === sel; if (r.kind === TUN.TRENCH) g.setLineDash([5, 4]);
+        drawPath(r.a, Math.min(r.b, trk.n - 1), Math.max(10, (tn ? tn.rout * 2 : 5) * TV.sc), `rgba(${TUN_COL[r.kind]},${hot ? 0.55 : 0.32})`); g.setLineDash([]); } }
     drawPath(0, trk.nm - 1, 7, 'rgba(0,0,0,0.55)');
     // draw lower sections first so overpasses read correctly
     const segs = []; for (let k = 0; k < trk.nm - 1; k += 2) segs.push(k);
@@ -4227,6 +4924,17 @@ const Share = (() => {
     else S.nodes.forEach((n, i) => { const d = (sx(n.x) - px) ** 2 + (sy(n.y) - py) ** 2; if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  // a press on a tunnel's band in either editor selects it and shows its properties
+  function tunnelHit(px, py) {
+    if (!trk || !trk.tunnels || !trk.tunnels.length) return null; let best = null, bd = 1e9;
+    for (const tn of trk.tunnels) for (let k = tn.a; k <= Math.min(tn.b, trk.nm - 1); k += 2) {
+      let d;
+      if (S.cam === 'top') d = Math.hypot(tx(trk.px[k]) - px, tz(trk.pz[k]) - py) - Math.max(5, tn.rout * TV.sc);
+      else { const X = sx(trk.profX[k]), y0 = sy(trk.profY[k] - 1), y1 = sy(trk.profY[k] + trk.tunEnv.uc + tn.rout); d = Math.abs(X - px) + (py < y1 ? y1 - py : py > y0 ? py - y0 : 0) - 3; }
+      if (d < bd) { bd = d; best = tn; }
+    }
+    return bd < 6 ? best : null;
+  }
   function localXY(e) { const r = stage.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
   stage.addEventListener('pointerdown', e => {
     if (e.target.closest('.ov') && e.target.closest('.ov') !== mini) return;
@@ -4238,6 +4946,7 @@ const Share = (() => {
       if (hit >= 0) { selectNode(hit); if (S.mode === 'build') drag = { kind: S.cam === 'top' ? 'bend' : 'node', i: hit, moved: false }; else drag = { kind: 'pan', x, y }; }
       else {
         const now = performance.now();
+        const tn = tunnelHit(x, y); if (tn) { const ns = [...tn.nodes].sort((p, q) => p - q); selectNode(ns.find(i => i > 0) ?? ns[0]); if (innerWidth > 1100) $('tunSec').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
         if (S.cam === 'side' && S.mode === 'build' && e.pointerType !== 'mouse' && now - lastTap.t < 330 && Math.hypot(x - lastTap.x, y - lastTap.y) < 28) { insertNodeAt(x, y); lastTap.t = 0; drag = null; return; }
         lastTap = { t: now, x, y }; drag = { kind: 'pan', x, y };
       }
@@ -4405,6 +5114,7 @@ const Share = (() => {
       $('fSysRow').hidden = n.type !== 'launch'; $('fSys').value = n.sys || 'lsm';
       $('fHoldRow').hidden = n.type !== 'block'; $('fHold').value = n.hold || 0; $('fHoldn').value = n.hold || 0;
       $('fTunnel').checked = !!n.tunnel; $('fFlip').checked = !!n.flip;
+      refreshTunnel();
       $('nPrev').disabled = S.sel <= 0; $('nNext').disabled = S.sel >= S.nodes.length - 1; $('nDel').disabled = S.nodes.length <= 2;
     }
   }
@@ -4425,6 +5135,31 @@ const Share = (() => {
   const holdApply = v => nodeEdit(n => { n.hold = clamp(+v, 0, 20); });
   $('fHold').onchange = () => holdApply($('fHold').value); $('fHold').oninput = () => { $('fHoldn').value = $('fHold').value; }; $('fHoldn').onchange = () => holdApply($('fHoldn').value);
   $('fTunnel').onchange = () => nodeEdit(n => { if ($('fTunnel').checked) n.tunnel = true; else delete n.tunnel; });
+  // ---------- tunnel properties: shown when the selected node's incoming segment lies in a tunnel ----------
+  function refreshTunnel() {
+    const tn = selTunnel(); $('tunSec').hidden = !tn; if (!tn) return; const P = tn.props;
+    const kinds = tn.kinds.map(k => `<i style="background:rgb(${TUN_COL[k]})"></i>${TUN_NAME[k]}`).join(' → ');
+    const ns = [...tn.nodes].sort((a, b) => a - b), entries = tn.portals.filter(p => !p.inner);
+    $('tunTag').textContent = `${Math.round(tn.len)} m`;
+    $('tunSum').innerHTML = `${kinds}<br>Portals at <b>${entries.map(p => Math.round(p.s) + ' m').join('</b> and <b>')}</b> · nodes #${ns[0]}–#${ns[ns.length - 1]}`;
+    const segSet = (id, v) => $(id).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+    segSet('tunLight', P.light); segSet('tunStyle', P.style); segSet('tunShell', P.shell); segSet('tunFit', P.fit);
+    $('tunStyleRow').hidden = !tn.kinds.includes(TUN.ABOVE); $('tunShellRow').hidden = !tn.kinds.includes(TUN.WATER);
+    $('tunFog').checked = !!P.fog; $('tunSpray').checked = !!P.spray; $('tunDust').checked = !!P.dust; $('tunEcho').checked = P.echo !== false; $('tunSfx').value = P.sfx || 'none';
+    $('tunGap').textContent = `${(tn.gap != null && isFinite(tn.gap) ? tn.gap : tn.rin - trk.tunEnv.rc).toFixed(2)} m to reach`;
+    $('tunHint').textContent = tn.kinds.includes(TUN.WATER) || tn.kinds.includes(TUN.UNDER) ? 'Underground and underwater sections follow the terrain: lower the track below the ground or into the lake to make one. Settings apply to the whole tunnel.' : 'Settings apply to the whole tunnel. Untick “Covered tunnel” on its nodes to remove it.';
+    $('tunSec').querySelectorAll('button, input, select').forEach(el => el.disabled = S.mode === 'ride');
+  }
+  function tunEdit(fn, msg) {
+    if (S.mode === 'ride') return; const tn = selTunnel(); if (!tn) return;
+    pushHistory(); const P = { ...tn.props }; fn(P); const clean = cleanTun(P);
+    for (const i of tn.nodes) { const n = S.nodes[i]; if (!n) continue; if (clean) n.tun = { ...clean }; else delete n.tun; }
+    commit(); if (msg) toast(msg);
+  }
+  for (const [id, key] of [['tunLight', 'light'], ['tunStyle', 'style'], ['tunShell', 'shell'], ['tunFit', 'fit']])
+    $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) tunEdit(P => { P[key] = b.dataset.v; }); });
+  for (const [id, key] of [['tunFog', 'fog'], ['tunSpray', 'spray'], ['tunDust', 'dust'], ['tunEcho', 'echo']]) $(id).onchange = () => tunEdit(P => { P[key] = $(id).checked; });
+  $('tunSfx').onchange = () => tunEdit(P => { P.sfx = $('tunSfx').value; }, $('tunSfx').value !== 'none' ? 'The effect plays as the train enters the tunnel (sound on)' : null);
   $('fFlip').onchange = () => nodeEdit(n => { if ($('fFlip').checked) n.flip = true; else delete n.flip; });
   $('bAutoBank').onclick = () => { if (S.mode === 'ride') return; const n = S.nodes[S.sel]; if (!n.yaw) { toast('This node has no turn. Set a turn angle first.'); return; } pushHistory(); n.roll = autoBankFor(S.nodes, S.sel, trk, an); commit(); toast(`Banked to ${Math.abs(n.roll)}° for the predicted speed`); };
   $('bAlign').onclick = () => { if (S.mode === 'ride') return; pushHistory(); const l = S.nodes[S.nodes.length - 1]; l.y = S.nodes[0].y; S.sel = S.nodes.length - 1; commit(); toast('Final node levelled with the station'); };
@@ -4443,7 +5178,7 @@ const Share = (() => {
       row('Lowest vertical G', `${lo.toFixed(2)} G`, lo < -1.5 ? 'bad' : lo < -0.8 ? 'warn' : 'good') + row('Peak lateral G', `${an.maxLG.toFixed(2)} G`, an.maxLG > 1.8 ? 'warn' : 'good') +
       row('Inversions', an.inversions) + row('Airtime', `${an.airtime.toFixed(1)} s`) + row('Ride time', `${Math.round(an.duration)} s`) +
       row('Block sections', S.closed ? `${blocks} · up to ${maxTrainsFor(trk)} train${maxTrainsFor(trk) > 1 ? 's' : ''}` : 'shuttle, 1 train') +
-      row('Track clashes', clear.conflicts.length, clear.conflicts.length ? 'bad' : 'good') + row('Crossovers', clear.crossings.length);
+      row('Track clashes', clear.conflicts.length, clear.conflicts.length ? 'bad' : 'good') + row('Crossovers', clear.crossings.length) + tunnelRows(row);
     let note = '';
     if (an.stallS != null) { let j = 0; for (let i = 0; i < trk.nodeS.length; i++) if (trk.nodeS[i] <= an.stallS) j = i; note = `<div class="note">The train runs out of energy near ${Math.round(an.stallS)} m (after node #${j}). Lower the hill ahead of it or add a lift or launch.</div>`; }
     else if (clear.conflicts.length) note = `<div class="note">Part of the track runs through another part. Bend it away in the Top view or raise one section above the other.</div>`;
@@ -4451,6 +5186,17 @@ const Share = (() => {
     else note = `<div class="note ok">The train completes the ${S.closed ? 'circuit' : 'run'} with forces inside rider limits.</div>`;
     $('checkNote').innerHTML = note;
     $('clashList').innerHTML = clear.conflicts.slice(0, 5).map((c, i) => `<button class="clash" data-i="${i}">Clash at ${Math.round(c.s)} m and ${Math.round(c.s2)} m · ${c.d.toFixed(1)} m apart <b>Show</b></button>`).join('');
+  }
+  function tunnelRows(row) {
+    let out = ''; const R = an.ratings;
+    if (trk.tunnels && trk.tunnels.length) {
+      out += row('Tunnels', `${trk.tunnels.length} · ${Math.round(trk.tunnels.reduce((a, t) => a + t.len, 0))} m`);
+      const gap = Math.min(...trk.tunnels.map(t => t.gap != null && isFinite(t.gap) ? t.gap : t.rin - trk.tunEnv.rc));
+      if (isFinite(gap)) out += row('Tunnel wall clearance', `${gap.toFixed(2)} m`, gap < 0.05 ? 'bad' : gap < 0.25 ? 'warn' : 'good');
+    }
+    if (R) { const cls = v => v > 9 ? 'bad' : v > 7 ? 'warn' : '';
+      out += row('Excitement', `${R.excitement.toFixed(2)} · ${ratingLabel(R.excitement)}`) + row('Intensity', `${R.intensity.toFixed(2)} · ${ratingLabel(R.intensity)}`, cls(R.intensity)) + row('Nausea', `${R.nausea.toFixed(2)} · ${ratingLabel(R.nausea)}`, cls(R.nausea)); }
+    return out;
   }
   $('clashList').addEventListener('click', e => {
     const b = e.target.closest('.clash'); if (!b) return; const c = clear.conflicts[+b.dataset.i]; if (!c) return;
@@ -4530,7 +5276,7 @@ const Share = (() => {
   function setMode(m) {
     S.mode = m; setPressed(['mBuild', 'mRide'], m === 'build' ? 'mBuild' : 'mRide');
     $('left').classList.toggle('locked', m === 'ride');
-    document.querySelectorAll('.elbtn, #inspector .editable input, #inspector .editable button, #inspector .editable select, #catTabs button, #dirRow button').forEach(el => el.disabled = m === 'ride');
+    document.querySelectorAll('.elbtn, #inspector .editable input, #inspector .editable button, #inspector .editable select, #tunSec input, #tunSec button, #tunSec select, #catTabs button, #dirRow button').forEach(el => el.disabled = m === 'ride');
     if (m === 'ride') { resetTrains(); trains.forEach(t => { if (t.phase === 'load') t.timer = 1.0; }); setPlaying(true); if (isBoard() && glOK) setCam('pov'); toast('Ride mode: editing locked'); }
     updUndo(); refreshInspector(); boardDirty = true;
   }
@@ -4631,9 +5377,11 @@ const Share = (() => {
     S.env[g] = k; refreshScenerySheet(); savePrefs();
     if (g === 'weather') { const w = WEATHER[k]; Sound.setWeather(w.precip, w.wind); }
     if (!glOK) return;
-    if (g === 'scenery') { $('loading').hidden = false; $('loadS').textContent = 'Growing the ' + SCENERY[k].label.toLowerCase(); setTimeout(() => { World.setEnvironment({ [g]: k }); $('loading').hidden = true; }, 40); }
+    if (g === 'scenery') { $('loading').hidden = false; $('loadS').textContent = 'Growing the ' + SCENERY[k].label.toLowerCase(); setTimeout(() => { World.setEnvironment({ [g]: k }, { retrack: false }); retrackTerrain(); $('loading').hidden = true; }, 40); }
     else World.setEnvironment({ [g]: k });
   }));
+  // tunnels depend on the terrain and water, so a new landscape reclassifies the track and rebuilds it in 3D
+  function retrackTerrain() { rebuild(true); boardDirty = true; needFit = true; refreshInspector(); refreshCheck(); if (glOK) World.setTrack(trk, { count: trains.length }); }
   $('bScenery').onclick = () => openSheet('scenerySheet'); $('sClose').onclick = $('sDone').onclick = () => { $('scenerySheet').hidden = true; };
 
   // ---------- save / share ----------
@@ -4686,6 +5434,7 @@ const Share = (() => {
       const q = { x: clamp(+n.x, LIMITS.x[0], LIMITS.x[1]), y: clamp(+n.y, LIMITS.y[0], LIMITS.y[1]), yaw: clamp(+n.yaw || 0, LIMITS.yaw[0], LIMITS.yaw[1]), roll: normDeg(+n.roll || 0), type: SEG_BY_KEY[n.type] ? n.type : 'steel' };
       for (const k of ['lat', 'off', 'spd', 'hold']) if (n[k] != null && isFinite(+n[k])) q[k] = +n[k];
       if (n.flip) q.flip = true; if (n.tunnel) q.tunnel = true; if (n.sys && LAUNCH_SYS[n.sys]) q.sys = n.sys;
+      const tun = cleanTun(n.tun); if (tun) q.tun = tun;
       nodes.push(q); }
     return nodes;
   }
@@ -4695,7 +5444,7 @@ const Share = (() => {
     if (S.mode === 'ride') setMode('build');
     pushHistory(); S.nodes = nodes; S.closed = o.closed != null ? !!o.closed : S.closed; S.name = o.name || 'Imported coaster'; S.sel = Math.min(1, nodes.length - 1);
     if (o.design && TRAIN_TYPES[o.design.train]) S.design = { ...defaultDesign(o.design.train), ...o.design, colors: { ...defaultDesign(o.design.train).colors, ...(o.design.colors || {}) } };
-    if (o.env) { const env = { ...S.env }; if (SCENERY[o.env.scenery]) env.scenery = o.env.scenery; if (o.env.tod) env.tod = o.env.tod; if (WEATHER[o.env.weather]) env.weather = o.env.weather; const changed = JSON.stringify(env) !== JSON.stringify(S.env); S.env = env; if (changed && glOK) World.setEnvironment(env); }
+    if (o.env) { const env = { ...S.env }; if (SCENERY[o.env.scenery]) env.scenery = o.env.scenery; if (o.env.tod) env.tod = o.env.tod; if (WEATHER[o.env.weather]) env.weather = o.env.weather; const changed = JSON.stringify(env) !== JSON.stringify(S.env); S.env = env; if (changed && glOK) World.setEnvironment(env, { retrack: false }); }
     if (glOK) World.setDesign(S.design);
     commit({ resetTrain: true }); refreshCircuit(); needFit = needFitTop = true; fitBoard(); refreshDesignSheet(); refreshScenerySheet(); savePrefs();
     toast(`${label || 'Loaded'} “${S.name}” · ${nodes.length} nodes`);
@@ -4767,6 +5516,9 @@ const Share = (() => {
     if (S.playing) { scopeBuf.vg[scopeBuf.i] = gs.vg; scopeBuf.lg[scopeBuf.i] = gs.lg; scopeBuf.i = (scopeBuf.i + 1) % scopeBuf.vg.length; }
     const kM = trk.at(main.s);
     Sound.update({ v: main.v, type: typ, phase: main.phase, vg: gs.vg, ty: trk.get(trk.ty, main.s), uy: trk.get(trk.uy, main.s), launching: main.launching, launchSys: S.nodes[clamp(Math.floor(trk.u[kM]) + 1, 1, S.nodes.length - 1)]?.sys, wood: S.design.track === 'wood', pov: S.cam === 'pov', onLift: isLiftCode(trk.type[trk.at(main.s - TRAIN.len / 2)]) });
+    // tunnel echo and effects: the camera's tunnel in 3D views, the lead train's in the 2D editors
+    if (trk.tunnels && trk.tunnels.length) Sound.tunnel({ tn: !isBoard() && glOK ? (World.tunnelInside ? World.tunnelInside.tn : null) : (main.phase === 'run' ? trk.tunnelAt(main.s) : null), v: main.v });
+    else Sound.tunnel(null);
     if (!isBoard() && glOK) {
       if (S.cam === 'pov' && !(drag && drag.kind === 'look') && now - lastLookAt > 1400) { view.lookYaw *= Math.exp(-dt * 2.5); view.lookPitch *= Math.exp(-dt * 2.5); }
       World.frame(dt, trains, forces, view); World.render(dt);
@@ -4844,6 +5596,8 @@ const Share = (() => {
       if (!THREE || !THREE.WebGLRenderer) throw new Error('three.js did not load');
       World = createWorld(THREE);
       World.init($('gl'), S.quality, S.env); World.setDesign(S.design); glOK = true;
+      // classify tunnels against the real terrain and water now that the world exists
+      setEnvProbe(World.probe); rebuild(true); needFit = needFitTop = true; if (isBoard()) fitBoard(); boardDirty = true; refreshInspector(); refreshCheck();
       World.onThunder = d => Sound.thunder(d);
       World.setTrack(trk, { count: trains.length }); World.setGuides(S.guides);
       glState = 'ready'; refreshSys();
@@ -4851,7 +5605,7 @@ const Share = (() => {
       refreshStart(); if (!$('start').hidden) $('stRide').focus();
     }).catch(fail);
   }
-  window.__coaster = { nodeScreen(i) { if (S.cam === 'top') { if (!plan) plan = planNodes(S.nodes); return [tx(plan.x[i]), tz(plan.z[i])]; } return [sx(S.nodes[i].x), sy(S.nodes[i].y)]; }, routeToStation, seek(s, v, i = 0) { const t = trains[i]; t.phase = 'run'; t.dispatch = false; t.s = s; t.v = v; }, setCam, get trains() { return trains; }, get trk() { return trk; }, get S() { return S; }, loadPreset, insertElement, setMode, get an() { return an; }, get clear() { return clear; }, refreshDesignSheet, designChanged, get World() { return World; } };
+  window.__coaster = { get view() { return view; }, commit: o => commit(o), sampleScreen(k) { return S.cam === 'top' ? [tx(trk.px[k]), tz(trk.pz[k])] : [sx(trk.profX[k]), sy(trk.profY[k])]; }, nodeScreen(i) { if (S.cam === 'top') { if (!plan) plan = planNodes(S.nodes); return [tx(plan.x[i]), tz(plan.z[i])]; } return [sx(S.nodes[i].x), sy(S.nodes[i].y)]; }, routeToStation, seek(s, v, i = 0) { const t = trains[i]; t.phase = 'run'; t.dispatch = false; t.s = s; t.v = v; }, setCam, get trains() { return trains; }, get trk() { return trk; }, get S() { return S; }, loadPreset, insertElement, setMode, get an() { return an; }, get clear() { return clear; }, refreshDesignSheet, designChanged, get World() { return World; } };
   boot();
 })();
 // ===================== END APP =====================
