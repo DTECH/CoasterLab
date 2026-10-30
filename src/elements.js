@@ -188,18 +188,23 @@ function genTopHat(t, c, inverted) {
   let lo = 4, hi = Math.max(5, target - yA);
   for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (crestTop(yA + m) > target) hi = m; else lo = m; }
   const lineUp = lo, minRollLine = 14;
-  if (inverted && lineUp < minRollLine) { t.fail = 'An inverted top hat needs more speed here so the climb is long enough to roll. Add a stronger launch before it.'; return; }
-  loopArc(t, c, 90, th => th, pullUp, 4);
+  const jUp = t.pts.length; loopArc(t, c, 90, th => th, pullUp, 4);
   const nU = Math.max(inverted ? 3 : 1, Math.round(lineUp / 10));
   t.line(lineUp, nU, inverted ? (u => ({ roll: normDeg(180 * d * clamp((u - 0.1) / 0.8, 0, 1)) })) : null);
+  // fast launches build pull-ups and crests so tall that the vertical straight between them is short: the half roll then
+  // starts on the steep end of the pull-up and finishes on the straight (a twisted climb), instead of being crammed in
+  if (inverted && lineUp < minRollLine) { const idx = []; for (let i = jUp + 3; i < t.pts.length; i++) idx.push(i); idx.forEach((ix, i) => { t.pts[ix].roll = normDeg(180 * d * (i + 1) / idx.length); }); t.st.roll = t.last().roll; }
   loopArc(t, c, -90, th => th + Math.PI, crest, 3); loopArc(t, c, -90, th => th + Math.PI, crest, 3);
   // vertical drop, then a pull-out that ends level with where the element started
   const outDrop = y => y - loopArc({ x: 0, y, th: -HP }, c, 90, th => th, pullOut, 4, true).y;
   let lo2 = 0, hi2 = Math.max(1, t.y - yBase);
   for (let i = 0; i < 30; i++) { const m = (lo2 + hi2) / 2; const yb = t.y - m; if (yb - outDrop(yb) < yBase) hi2 = m; else lo2 = m; }
   const lineDn = Math.max(2, lo2), nD = Math.max(inverted ? 3 : 1, Math.round(lineDn / 10));
+  const jDn = t.pts.length;
   t.line(lineDn, nD, inverted ? (u => ({ roll: normDeg(180 * d + 180 * d * clamp((u - 0.1) / 0.8, 0, 1)) })) : null);
-  loopArc(t, c, 90, th => th, pullOut, 4); t.th = 0; t.line(8, 1, () => ({ roll: 0 }));
+  loopArc(t, c, 90, th => th, pullOut, 4);
+  if (inverted && lineDn < minRollLine) { const idx = []; for (let i = jDn; i < t.pts.length - 3; i++) idx.push(i); idx.forEach((ix, i) => { t.pts[ix].roll = normDeg(180 * d + 180 * d * (i + 1) / idx.length); }); t.st.roll = 0; }
+  t.th = 0; t.line(8, 1, () => ({ roll: 0 }));
 }
 function genCorkscrew(t, c, scale) {
   // helix around a forward axis; phase eases in and out so the train enters and leaves without a sideways jolt
@@ -358,7 +363,8 @@ function makeElement(kind, base, speedHint, dir = 1) {
   }
   const out = [];
   for (const p of t.pts) {
-    const nd = { x: rnd2(base.x + p.x), y: rnd2(Math.max(0.5, base.y + p.y)), yaw: p.yaw || 0, roll: Math.round(normDeg(p.roll || 0)), type: p.type || 'steel' };
+    const nd = { x: rnd2(base.x + p.x), y: rnd2(Math.max(el.cat === 'tunnels' ? LIMITS.y[0] : 0.5, base.y + p.y)),   // tunnel dives may go below ground
+      yaw: p.yaw || 0, roll: Math.round(normDeg(p.roll || 0)), type: p.type || 'steel' };
     if (p.flip) nd.flip = true;
     if (p.tunnel) nd.tunnel = true;
     if (p.off) nd.off = p.off;
@@ -500,7 +506,148 @@ const PRESET_DEFS = {
       P(920 + L3, 5), P(948 + L3, 12), P(976 + L3, 6.5), P(1002 + L3, 10), P(1020 + L3, 5.2),
       P(1045 + L3 + L2 * 0.2, 5), P(1045 + L3 + L2 * 0.35, 13), P(1045 + L3 + L2 * 0.5, 5.5), P(1045 + L3 + L2 * 0.62, 5, 0, 0, 'tires', { spd: 40 }), P(1060 + L3 + L2, 5, 0, 0, 'tires', { spd: 40 }), P(1080 + L3 + L2, 5),
       P(1100 + L3 + L2, 5, -45, A), P(1122 + L3 + L2, 5, -45, A), P(1144 + L3 + L2, 4.8), P(1170 + L3 + L2, 4.6, 0, 0, 'brakes'), P(1200 + L3 + L2, 4.5, 0, 0, 'brakes')];
-    return { name: 'Lake Tunnel Express', closed: true, style: { train: 'hyper', track: 'tubular', supports: 'steel', paint: 1 }, nodes: n }; },
+    return { name: 'Lake Tunnel Express', closed: true, style: { train: 'hyper', track: 'tubular', supports: 'steel', paint: 1 }, env: { scenery: 'alpine' }, nodes: n }; },
+  riptide: () => { let n = [P(0, 4, 0, 0, 'station'), P(26, 4, 0, 0, 'station'), P(38, 4.4)];
+    // B&M-style floorless on the tropical coast: cable lift, loop, cobra and corkscrew run north; the train crosses the
+    // beach into an acrylic tube under the sea, surfaces into a pneumatic launch and an inverted top hat, then works
+    // back through a timber tunnel, an open cut and a bore before a final helix lines it up with the station
+    n = withEl(n, 'cablelift', 1, 3.7);
+    n = withEl(n, 'predrop', 1, 8.1);
+    n = withEl(n, 'drop', 1, 11.1);
+    n = chain(n, [P(14, 5)]);
+    n = withEl(n, 'loop', 1, 36.5);
+    n = chain(n, [P(10, 6)]);
+    n = withEl(n, 'zerog', 1, 34.2);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'cobra', 1, 32.2);
+    n = chain(n, [P(14, 6)]);
+    n = withEl(n, 'camelback', 1, 30.5);
+    n = chain(n, [P(10, 6)]);
+    n = withEl(n, 'corkscrew', -1, 29);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'waveturn', 1, 27.7);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'bank', -1, 25.8);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'mcbr', 1, 24.6);
+    n = withEl(n, 'heartline', 1, 23.8);
+    n = chain(n, [P(20, 5), P(45, 0, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'work',spray: true,sfx: 'monster'}}), P(75, -5, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'work',spray: true,sfx: 'monster'}}), P(110, -6, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'work',spray: true,sfx: 'monster'}}), P(160, -6, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'work',spray: true,sfx: 'monster'}}), P(185, -6, -45, A), P(210, -6, -45, A), P(235, -6), P(355, -6), P(385, -4), P(415, 1), P(445, 5), P(465, 6)]);
+    n = withEl(n, 'boosters', 1, 17.8);
+    n = withEl(n, 'pneumatic', 1, 11.4);
+    n.forEach(q => { if (q.sys === 'pneumatic') q.spd = 150; });
+    n = withEl(n, 'invtophat', 1, 41.7);
+    n = chain(n, [P(14, 6)]);
+    n = withEl(n, 'trim', 1, 51.9);
+    n = chain(n, [P(30, 6, 0, 0, 'trim', {spd: 140}), P(50, 6)]);
+    n = withEl(n, 'nonloop', 1, 38);
+    n = chain(n, [P(12, 6), P(42, 6, 0, 0, 'trim', {spd: 95}), P(62, 6, 0, 0, 'trim', {spd: 95}), P(72, 6)]);
+    n = withEl(n, 'batwing', 1, 26.3);
+    n = chain(n, [P(14, 6)]);
+    n = withEl(n, 'speedhill', 1, 23.5);
+    n = chain(n, [P(10, 6)]);
+    n = withEl(n, 'diveloop', 1, 22.9);
+    n = chain(n, [P(10, 6), P(30, 14), P(46, 16)]);
+    n = withEl(n, 'stengel', -1, 17);
+    n = chain(n, [P(14, 5)]);
+    n = withEl(n, 'covered', 1, 20.5);
+    n.slice(-4).forEach(q => { q.tun = { style: 'wood', light: 'black', dust: true, sfx: 'thunder' }; });
+    n = chain(n, [P(45.5, 5)]);
+    n = withEl(n, 'opencut', 1, 20.3);
+    n.slice(-10).forEach(q => { q.tun = { light: 'work' }; });
+    n = chain(n, [P(10, 5)]);
+    n = withEl(n, 'underdive', 1, 19.4);
+    n.slice(-10).forEach(q => { q.tun = { light: 'work', fog: true, sfx: 'monster' }; });
+    n = chain(n, [P(10, 5)]);
+    n = withEl(n, 'lsm', 1, 17.9);
+    n.slice(-5).forEach(q => { q.tun = { light: 'work', fog: true, sfx: 'monster' }; });
+    n = withEl(n, 'overbank', -1, 27.8);
+    n = chain(n, [P(12, 5, 14, A), P(34, 5, 6, A), P(46, 5)]);
+    n = withEl(n, 'scurve', 1, 25.9);
+    n = chain(n, [P(220, 5), P(250, 22), P(266, 24)]);
+    n = withEl(n, 'doubledown', 1, 8.4);
+    n = chain(n, [P(14, 5), P(136, 5)]);
+    n = withEl(n, 'helix', 1, 18.6);
+    n = chain(n, [P(12, 5), P(26, 5, -31, A), P(48, 5, -19, A), P(70, 4.8)]);
+    n = withEl(n, 'brakerun', 1, 16.1);
+    return { name: 'Riptide Reef Floorless', closed: true, style: { train: 'floorless', track: 'box', supports: 'box', paint: 5 }, env: { scenery: 'tropical', tod: 'golden', weather: 'fair' }, nodes: n }; },
+  ember: () => { let n = [P(0, 4, 0, 0, 'station'), P(26, 4, 0, 0, 'station'), P(38, 4.4)];
+    // Wing coaster in the autumn forest at dusk: an LSM launch out of the station, a neon-lit tube under the lake, a
+    // chain lift with a turnaround at the top and a holding-brake drop, a run of wing inversions, a vertical lift into a
+    // beyond-vertical drop, a hydraulic launch over a top hat, then a family finale with a tire lift, bunny hops and
+    // wild-mouse hairpins before a wireframe tunnel, an open cut and a bore lead home
+    n = withEl(n, 'lsm', 1, 3.6);
+    n = chain(n, [P(60, 5)]);
+    n = withEl(n, 'bank', -1, 26.9);
+    n = chain(n, [P(10, 5)]);
+    n = chain(n, [P(30, 5), P(55, 1, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'neon',fog: true,sfx: 'scifi'}}), P(80, -4, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'neon',fog: true,sfx: 'scifi'}}), P(110, -6, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'neon',fog: true,sfx: 'scifi'}}), P(180, -6, 0, 0, 'steel', {tun: {shell: 'acrylic',light: 'neon',fog: true,sfx: 'scifi'}}), P(210, -3), P(240, 2), P(270, 6)]);
+    n = withEl(n, 'chainlift', 1, 22.3);
+    n = withEl(n, 'turnaround', 1, 4.4);
+    n = chain(n, [P(10, 50)]);
+    n = withEl(n, 'holddrop', 1, 4);
+    n = chain(n, [P(14, 5)]);
+    n = withEl(n, 'zerogstall', 1, 29.3);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'barrelroll', -1, 27.4);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'inline', 1, 25.8);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'seaserpent', 1, 25.3);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'norwegian', 1, 24.1);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'sidewinder', 1, 22.4);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'mcbr', 1, 21.5);
+    n = withEl(n, 'trim', 1, 7.4);
+    n = chain(n, [P(30, 6, 0, 0, 'trim', {spd: 20}), P(40, 6)]);
+    n = withEl(n, 'vertlift', 1, 4.8);
+    n = withEl(n, 'bvdrop', 1, 4.4);
+    n = chain(n, [P(14, 5)]);
+    n = withEl(n, 'hammerhead', 1, 26.8);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'hydraulic', 1, 25.2);
+    n.forEach(q => { if (q.sys === 'hydraulic') q.spd = 150; });
+    n = withEl(n, 'tophat', 1, 41.7);
+    n = chain(n, [P(14, 6), P(44, 6, 0, 0, 'trim', {spd: 80}), P(74, 6, 0, 0, 'trim', {spd: 80}), P(80, 6)]);
+    n = withEl(n, 'camels', 1, 26.4);
+    n = chain(n, [P(5, 6)]);
+    n = withEl(n, 'immelmann', 1, 23.1);
+    n = withEl(n, 'bank', 1, 21.8);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'bank', -1, 21.3);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'covered', 1, 20.4);
+    n.slice(-4).forEach(q => { q.tun = { style: 'wire', light: 'neon', fog: true, sfx: 'scifi' }; });
+    n = chain(n, [P(12, 6), P(52, 6, 0, 0, 'trim', {spd: 20}), P(58, 6)]);
+    n = withEl(n, 'tirelift', 1, 5.2);
+    n = withEl(n, 'vdrop', 1, 3.6);
+    n = chain(n, [P(12, 5)]);
+    n = withEl(n, 'bunny', 1, 18.5);
+    n = chain(n, [P(10, 5)]);
+    n = withEl(n, 'trim', 1, 10);
+    n = chain(n, [P(30, 5, 0, 0, 'trim', {spd: 30}), P(40, 5)]);
+    n = withEl(n, 'hairpin', 1, 6.7);
+    n = chain(n, [P(8, 5)]);
+    n = withEl(n, 'hairpin', -1, 6.2);
+    n = chain(n, [P(8, 5)]);
+    n = withEl(n, 'lsm', 1, 5.6);
+    n = chain(n, [P(0, 5)]);
+    n = withEl(n, 'bank', 1, 27.7);
+    n = chain(n, [P(12, 5)]);
+    n = withEl(n, 'bank', 1, 26.3);
+    n = chain(n, [P(12, 5)]);
+    n = withEl(n, 'doubleup', 1, 25);
+    n = chain(n, [P(12, 6)]);
+    n = withEl(n, 'opencut', 1, 23.1);
+    n.slice(-10).forEach(q => { q.tun = { light: 'work' }; });
+    n = chain(n, [P(10, 5)]);
+    n = withEl(n, 'underdive', 1, 21.9);
+    n.slice(-10).forEach(q => { q.tun = { light: 'black', sfx: 'monster', dust: true }; });
+    n = chain(n, [P(222.25, 5)]);
+    n = withEl(n, 'bank', 1, 18.6);
+    n = chain(n, [P(370.25, 5), P(392.25, 5, 45, A), P(414.25, 5, 45, A), P(436.25, 4.8), P(466.25, 4.8)]);
+    n = withEl(n, 'brakerun', 1, 13.4);
+    return { name: 'Ember Hollow Wing Coaster', closed: true, style: { train: 'wing', track: 'truss', supports: 'steel', paint: 3 }, env: { scenery: 'autumn', tod: 'dusk', weather: 'fair' }, nodes: n }; },
   blank: () => ({ name: 'Blank Slate (3 Nodes)', closed: false, nodes: [P(0, 4, 0, 0, 'station'), P(30, 4, 0, 0, 'station'), P(60, 4)] })
 };
 function resolvePreset(key) {
@@ -510,9 +657,9 @@ function resolvePreset(key) {
     const trk = buildTrack(nodes, def.closed), an = analyzeTrack(trk);
     nodes = nodes.map((n, i) => autos[i] ? { ...n, roll: autoBankFor(nodes, i, trk, an) } : n);
   }
-  return { name: def.name, closed: def.closed, style: def.style || null, nodes };
+  return { name: def.name, closed: def.closed, style: def.style || null, env: def.env || null, nodes };
 }
-const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'lake', 'blank'];
+const PRESET_ORDER = ['hyper', 'corkscrew', 'inverted', 'strata', 'woodie', 'dive', 'mouse', 'boomerang', 'mine', 'lake', 'riptide', 'ember', 'blank'];
 const PRESETS = {};
 function getPreset(key) { return PRESETS[key] || (PRESETS[key] = resolvePreset(key)); }
 // ===================== END ELEMENTS =====================

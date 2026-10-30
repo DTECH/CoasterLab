@@ -78,6 +78,9 @@
     const p = getPreset(key); if (!silent) pushHistory();
     applyStyle(p.style);
     S.nodes = p.nodes.map(n => ({ ...n })); S.closed = p.closed; S.sel = Math.min(1, S.nodes.length - 1); S.name = p.name;
+    // presets built around a landscape (a lake, the sea) bring their scenery with them
+    if (p.env) { const env = { ...S.env, ...p.env }, changed = JSON.stringify(env) !== JSON.stringify(S.env); S.env = env;
+      if (changed) { if (glOK) World.setEnvironment(env, { retrack: false }); refreshScenerySheet(); const w = WEATHER[env.weather] || {}; Sound.setWeather(w.precip, w.wind); } }
     if (glOK) World.setDesign(S.design);
     commit({ resetTrain: true }); refreshCircuit(); fitBoard(); refreshDesignSheet(); savePrefs();
     if (glOK) schedule3D();

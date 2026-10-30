@@ -135,11 +135,18 @@ Everything is synthesised with the Web Audio API, no sound files.
 | Boomerang Shuttle | Looping | Open | 377 m | 102 km/h | 3.98 | −0.72 | 0.39 | 1 |
 | Family Mine Train | Mine train | Closed | 446 m | 54 km/h | 1.44 | 0.69 | 0.05 | 0 |
 | Lake Tunnel Express | Hyper | Closed | 1,589 m | 112 km/h | 2.10 | −0.09 | 0.33 | 0 |
+| Riptide Reef Floorless | Floorless | Closed | 5,240 m | 150 km/h | 4.41 | −0.96 | 1.70 | 12 |
+| Ember Hollow Wing Coaster | Wing | Closed | 5,256 m | 150 km/h | 4.30 | −1.04 | 1.50 | 11 |
 | Blank Slate (3 nodes) | Hyper | Open | 60 m | — | — | — | — | — |
 
 These figures come from `node tools/check_presets.js`, which also checks that no preset has a track clash.
 
 Lake Tunnel Express drops into the alpine lake through an acrylic tube on the lake bed, climbs out through an underground bore and an open cut, then threads a neon-lit covered tunnel and two airtime hills on the way home.
+
+Riptide Reef and Ember Hollow are the two showcase rides. Between them they use every element in the palette except the vertical spike, which makes a ride a shuttle, and the pretzel loop, which is built for flying trains. Each one also runs through all four kinds of tunnel. Loading a preset that was designed around a landscape switches the scenery to match.
+
+- **Riptide Reef Floorless** (tropical coast, golden hour): cable lift, pre-drop, steep drop, vertical loop, zero-G roll, cobra roll, airtime hill, corkscrew, wave turn, banked turn, block brake and heartline roll. A 370 m acrylic tube then runs under the sea. Next come booster tires, a pneumatic launch into an inverted top hat, trim brakes and a non-inverting loop, followed by a batwing, speed hill, dive loop and Stengel dive. A dark timber tunnel, an open cut, a bore into the hills, an LSM boost, an overbanked turn, an S-curve, a double down into another bore and a final helix lead home.
+- **Ember Hollow Wing Coaster** (autumn forest, dusk): an LSM launch out of the station into a neon tube under the lake, then a chain lift with a turnaround at the top and a holding-brake drop. A run of wing inversions follows: zero-G stall, barrel roll, inline twist, sea serpent and Norwegian loop. Then a sidewinder, block brake, trim, vertical lift and beyond-vertical drop, a hammerhead, a hydraulic launch over a top hat, a camelback series and an Immelmann. The ride ends with a wireframe tunnel and a family section: tire lift, vertical drop, bunny hops and a pair of wild-mouse hairpins, then an LSM boost, a double up, an open cut and a bore.
 
 ## Controls
 

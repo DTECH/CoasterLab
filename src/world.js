@@ -875,7 +875,9 @@ function createWorld(THREE) {
     ground: (x, z) => Math.max(terrainHeight(x, z), terrainBaseY ? meshHeight(x, z) : -1e9),   // what is drawn can sit above the shape in hollows
     water: (x, z) => { const sc = SC(); if (sc.water === 'none') return null; if (sc.water !== 'ocean' && Math.hypot(x - LAKE.x, (z - LAKE.z) * 1.35) > LAKE.r * 1.9) return null; return terrainHeight(x, z) < WATER_Y - 0.2 ? WATER_Y : null; }
   };
-  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, meshHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
+  // headless tools (preset design scripts) select the landscape without a renderer
+  function useScenery(k) { if (SCENERY[k]) sceneryKey = k; }
+  return { useScenery, init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, meshHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
     setGuides: g => { guides = g; }, TIERS, TOD, TOD_ORDER,
     rescatter: t => scatterVegetation(t), rebuildTrains: count => trainGfx.build(design, count),
     get camera() { return camera; }, get scene() { return scene; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },
