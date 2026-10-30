@@ -431,22 +431,28 @@ function createTrains(THREE, ctx) {
       // head (pivot at the base of the neck): skull, jaw, nose, ears and neck
       head: merge([{ geo: headShape(0.104, hs + 4), m: mat4(0, 0.16, 0.005) }, sph(0.018, 0, 0.145, -0.102, 0.9, 1.35, 1.1, 6, 4), sph(0.022, -0.097, 0.158, 0.008, 0.45, 1.25, 0.8, 6, 4), sph(0.022, 0.097, 0.158, 0.008, 0.45, 1.25, 0.8, 6, 4),
         { geo: new THREE.CylinderGeometry(0.046, 0.052, 0.12, rad), m: mat4(0, 0.035, 0.008) }]),
-      eyes: merge([sph(0.0125, -0.036, 0.172, -0.088, 1, 1, 0.7, 6, 4), sph(0.0125, 0.036, 0.172, -0.088, 1, 1, 0.7, 6, 4),
-        { geo: new THREE.BoxGeometry(0.04, 0.008, 0.012), m: mat4(-0.037, 0.198, -0.088, 0, 0, 0.12) }, { geo: new THREE.BoxGeometry(0.04, 0.008, 0.012), m: mat4(0.037, 0.198, -0.088, 0, 0, -0.12) }]),
+      // dark parts of the face: irises sitting on the eye whites, brows and upper lashes
+      eyes: merge([sph(0.0082, -0.035, 0.172, -0.1, 1, 1, 0.45, 8, 6), sph(0.0082, 0.035, 0.172, -0.1, 1, 1, 0.45, 8, 6),
+        { geo: new THREE.BoxGeometry(0.036, 0.007, 0.012), m: mat4(-0.036, 0.197, -0.09, 0, 0, 0.1) }, { geo: new THREE.BoxGeometry(0.036, 0.007, 0.012), m: mat4(0.036, 0.197, -0.09, 0, 0, -0.1) },
+        { geo: new THREE.BoxGeometry(0.026, 0.003, 0.006), m: mat4(-0.035, 0.181, -0.098) }, { geo: new THREE.BoxGeometry(0.026, 0.003, 0.006), m: mat4(0.035, 0.181, -0.098) }]),
+      eyeWhite: merge([sph(0.0145, -0.035, 0.172, -0.087, 1, 0.78, 0.75, 10, 6), sph(0.0145, 0.035, 0.172, -0.087, 1, 0.78, 0.75, 10, 6)]),
       mouth: new THREE.SphereGeometry(0.022, 8, 4).scale(1, 0.32, 0.45),
       hairShort: merge([{ geo: new THREE.SphereGeometry(0.111, rad, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), m: mat4(0, 0.18, 0.012, 0.6, 0, 0, 0.95, 1.06, 1.02) }]),
       hairLong: merge([{ geo: new THREE.SphereGeometry(0.113, rad, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), m: mat4(0, 0.178, 0.014, 0.62, 0, 0, 0.97, 1.1, 1.05) },
         { geo: roundedBox(0.2, 0.2, 0.06, 0.03, 2, 0.02), m: mat4(0, 0.1, 0.07, 0.1) }]),
       hairPony: merge([{ geo: new THREE.SphereGeometry(0.111, rad, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), m: mat4(0, 0.18, 0.012, 0.6, 0, 0, 0.95, 1.06, 1.02) }, sph(0.034, 0, 0.18, 0.11, 1, 1, 1, 8, 6), { geo: limbGeo(0.16, 0.03, 0.018, 6), m: mat4(0, 0.18, 0.12, Math.PI * 0.85) }]),
-      uarm: limbGeo(0.29, 0.05, 0.042, rad),
-      farm: merge([limbGeo(0.25, 0.041, 0.032, rad), sph(0.036, 0, 0.285, -0.006, 0.8, 1.25, 0.55, 8, 6), sph(0.013, 0.026, 0.268, -0.014, 1, 1.6, 1, 6, 4)]),
+      // upper arm with a rounded deltoid where it meets the shoulder
+      uarm: merge([{ geo: limbGeo(0.29, 0.052, 0.04, rad) }, sph(0.056, 0, 0.03, 0, 1, 1.15, 1, rad, Math.round(rad * 0.7))]),
+      // forearm and a hand: palm, four fingers curled over in a grip, and a thumb
+      farm: merge([{ geo: limbGeo(0.255, 0.041, 0.03, rad) }, { geo: roundedBox(0.07, 0.085, 0.028, 0.012, 1), m: mat4(0, 0.29, -0.004) },
+        { geo: roundedBox(0.066, 0.06, 0.022, 0.01, 1), m: mat4(0, 0.345, -0.014, -0.55, 0, 0) }, { geo: limbGeo(0.048, 0.0115, 0.0095, 6), m: mat4(0.03, 0.262, -0.016, -0.6, 0, -0.45) }]),
       thigh: limbGeo(0.44, 0.07, 0.052, rad),
       shin: limbGeo(0.42, 0.055, 0.042, rad),
       shoe: merge([{ geo: roundedBox(0.1, 0.095, 0.26, 0.04, 1), m: mat4(0, -0.04, -0.06) }])
     };
     return riderGeo;
   }
-  const PARTS = ['torso', 'pelvis', 'head', 'eyes', 'mouth', 'hairShort', 'hairLong', 'hairPony', 'uarmL', 'uarmR', 'farmL', 'farmR', 'thighL', 'thighR', 'shinL', 'shinR', 'shoeL', 'shoeR'];
+  const PARTS = ['torso', 'pelvis', 'head', 'eyes', 'eyeWhite', 'mouth', 'hairShort', 'hairLong', 'hairPony', 'uarmL', 'uarmR', 'farmL', 'farmR', 'thighL', 'thighR', 'shinL', 'shinR', 'shoeL', 'shoeR'];
   function buildRiders() {
     for (const k in partMeshes) { group.remove(partMeshes[k]); partMeshes[k].dispose(); }
     partMeshes = {}; riders = [];
@@ -458,16 +464,18 @@ function createTrains(THREE, ctx) {
       const pick = a => a[Math.floor(rnd() * a.length)];
       const hr = rnd(), shirt = pick(SHIRTS), skin = pick(SKIN);
       riders.push({ ti, car, seat: st, shirt, skin, sleeve: rnd() < 0.3 ? skin : shirt, hair: pick(HAIR), pants: pick(PANTS), shoes: pick(SHOES), hairStyle: hr < 0.42 ? 'hairShort' : hr < 0.72 ? 'hairLong' : hr < 0.92 ? 'hairPony' : null,
-        brave: rnd(), scale: 0.9 + rnd() * 0.16, arm: 0, armT: 0, look: 0, lookT: 0, lookTimer: rnd() * 4, bob: rnd() * 6, mouth: 0, hidden: false });
+        brave: rnd(), scale: 0.9 + rnd() * 0.16, build: 0.92 + rnd() * 0.16, arm: 0, armT: 0, look: 0, lookT: 0, lookTimer: rnd() * 4, bob: rnd() * 6, mouth: 0, hidden: false });
     });
     const n = riders.length; if (!n) return;
     const geo = buildRiderGeo();
-    const skinMat = new M({ roughness: 0.62, metalness: 0 }), clothMat = new M({ roughness: 0.88 }), hairMat = new M({ roughness: 0.7 }), eyeMat = new M({ color: 0x1d1612, roughness: 0.25 }), mouthMat = new M({ color: 0x5a1f22, roughness: 0.6 }), shoeMat = new M({ roughness: 0.6 });
+    const skinMat = new M({ roughness: 0.62, metalness: 0 }), clothMat = new M({ roughness: 0.88 }), hairMat = new M({ roughness: 0.7 }), eyeMat = new M({ color: 0x1d1612, roughness: 0.25 }), eyeWhiteMat = new M({ color: 0xf2eee8, roughness: 0.3 }), mouthMat = new M({ color: 0x5a1f22, roughness: 0.6 }), shoeMat = new M({ roughness: 0.6 });
     const mk = (k, g, mat, cast = true) => { const im = new THREE.InstancedMesh(g, mat, n); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = cast; im.receiveShadow = true; im.frustumCulled = false; group.add(im); partMeshes[k] = im; };
     mk('torso', geo.torso, clothMat); mk('pelvis', geo.pelvis, clothMat); mk('head', geo.head, skinMat); mk('eyes', geo.eyes, eyeMat, false); mk('mouth', geo.mouth, mouthMat, false);
     // each hair style only gets instances for the riders who wear it
     for (const k of ['hairShort', 'hairLong', 'hairPony']) { const who = riders.filter(r => r.hairStyle === k); who.forEach((r, j) => { r.hairIdx = j; }); if (!who.length) continue; const im = new THREE.InstancedMesh(geo[k], hairMat, who.length); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.castShadow = true; im.frustumCulled = false; group.add(im); partMeshes[k] = im; }
-    mk('uarmL', geo.uarm, clothMat); mk('uarmR', geo.uarm, clothMat); mk('farmL', geo.farm, skinMat); mk('farmR', geo.farm, skinMat);
+    if (!geo.farmM) { geo.farmM = geo.farm.clone().scale(-1, 1, 1); const ix = geo.farmM.index.array; for (let q = 0; q < ix.length; q += 3) { const t = ix[q + 1]; ix[q + 1] = ix[q + 2]; ix[q + 2] = t; } }
+    mk('uarmL', geo.uarm, clothMat); mk('uarmR', geo.uarm, clothMat); mk('farmL', geo.farmM, skinMat); mk('farmR', geo.farm, skinMat);
+    mk('eyeWhite', geo.eyeWhite, eyeWhiteMat, false);
     for (const k of ['thighL', 'thighR']) mk(k, geo.thigh, clothMat); for (const k of ['shinL', 'shinR']) mk(k, geo.shin, clothMat);
     for (const k of ['shoeL', 'shoeR']) mk(k, geo.shoe, shoeMat);
     const c = new THREE.Color();
@@ -478,7 +486,7 @@ function createTrains(THREE, ctx) {
       for (const k of ['farmL', 'farmR']) partMeshes[k].setColorAt(i, c.set(r.skin));
       for (const k of ['thighL', 'thighR', 'shinL', 'shinR']) partMeshes[k].setColorAt(i, c.set(r.pants));
       for (const k of ['shoeL', 'shoeR']) partMeshes[k].setColorAt(i, c.set(r.shoes));
-      for (const k of ['eyes', 'mouth']) partMeshes[k].setColorAt(i, c.set('#ffffff'));
+      for (const k of ['eyes', 'mouth', 'eyeWhite']) partMeshes[k].setColorAt(i, c.set('#ffffff'));
     });
     for (const k in partMeshes) if (partMeshes[k].instanceColor) partMeshes[k].instanceColor.needsUpdate = true;
   }
@@ -492,6 +500,17 @@ function createTrains(THREE, ctx) {
   // resting arm directions: hands on a lap bar or T-bar, or gripping shoulder-harness handles
   const dirs = { hold: new V3(0, -0.62, -0.78), holdF: new V3(0, -0.91, -0.41), holdO: new V3(0, -0.9, -0.43), holdOF: new V3(0, 0.1, -1), up: new V3(0, 1, -0.12), upF: new V3(0, 1, -0.05) };
   const tmpA = new V3(), tmpB = new V3(), tmpC = new V3(), tmpD = new V3(), seatM = new THREE.Matrix4();
+  // hand targets in the seat frame (x is mirrored per side): gripping a lap bar, gripping the harness handles, raised
+  const HAND = { lap: new V3(0.19, 0.13, -0.33), harness: new V3(0.18, 0.33, -0.36), up: new V3(0.3, 1.0, -0.1) };
+  const ikN = new V3(), ikP = new V3();
+  function ik2(S, T, L1, L2, pole, out) {
+    ikN.subVectors(T, S); let d = ikN.length(); ikN.divideScalar(Math.max(1e-6, d));
+    d = clamp(d, Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-3);
+    const reach = Math.min(ikP.subVectors(T, S).length(), d); T.copy(S).addScaledVector(ikN, reach);  // pull an unreachable target in
+    const along = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - along * along));
+    ikP.copy(pole).addScaledVector(ikN, -pole.dot(ikN)); if (ikP.lengthSq() < 1e-6) ikP.set(0, 0, 1); ikP.normalize();
+    return out.copy(S).addScaledVector(ikN, along).addScaledVector(ikP, h);
+  }
   const outM = new THREE.Matrix4(), baseM = new THREE.Matrix4(), cB = new V3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
   function updateRiders(dt, view, cam) {
     if (!riders.length) return;
@@ -502,7 +521,8 @@ function createTrains(THREE, ctx) {
       // reactions
       const vg = tr.vg, v = Math.abs(st.v || 0);
       const thrill = (vg < 0.35 && v > 8) || (tr.ty < -0.45 && v > 10) || (st.launching) || tr.inverted;
-      r.armT = st.phase === 'load' ? 0 : thrill ? (r.brave > 0.45 ? 1 : r.brave > 0.25 ? 0.35 : 0) : tr.onLift ? (r.brave > 0.8 ? 0.55 + 0.25 * Math.sin(tr.time * 3 + r.bob) : 0) : (r.brave > 0.7 && v > 6 ? 0.4 : 0);
+      // arms are either holding on or raised: the in-between path is only passed through, never held
+      r.armT = st.phase === 'load' ? 0 : thrill ? (r.brave > 0.4 ? 1 : 0) : tr.onLift ? (r.brave > 0.8 ? 1 : 0) : (r.brave > 0.85 && v > 6 && v < 25 ? 1 : 0);
       if (vg > 2.8) r.armT = Math.min(r.armT, 0.2);
       r.arm += (r.armT - r.arm) * Math.min(1, dt * (r.armT > r.arm ? 4 : 2.5));
       const mouthT = st.phase === 'load' ? 0.05 : thrill || vg > 3 ? 0.85 : tr.onLift ? 0.15 : 0.1;
@@ -525,22 +545,25 @@ function createTrains(THREE, ctx) {
       base.multiply(tm2.makeRotationZ(lean * 0.3));
       // torso, pelvis & head
       pm.pelvis.setMatrixAt(i, base);
-      pm.torso.setMatrixAt(i, tm.multiplyMatrices(base, tm2.compose(v1.set(0, 0, 0), tq.identity(), vS.set(1, 1 - squash, 1))));
+      pm.torso.setMatrixAt(i, tm.multiplyMatrices(base, tm2.compose(v1.set(0, 0, 0), tq.identity(), vS.set(r.build, 1 - squash, 0.96 + (r.build - 1) * 0.6))));
       te.set(clamp((vg - 1) * -0.03, -0.12, 0.25) + (pose === 'prone' ? 0.9 : 0), r.look, lean * 0.7, 'YXZ'); tq.setFromEuler(te);
       const headM = tm3.multiplyMatrices(base, tm2.compose(v1.set(0, 0.615 - squash * 2, 0.005), tq, vS.set(1, 1, 1)));
-      pm.head.setMatrixAt(i, headM); pm.eyes.setMatrixAt(i, headM);
+      pm.head.setMatrixAt(i, headM); pm.eyes.setMatrixAt(i, headM); pm.eyeWhite.setMatrixAt(i, headM);
       pm.mouth.setMatrixAt(i, tm.multiplyMatrices(headM, tm2.compose(v1.set(0, 0.098, -0.094), tq.identity(), vS.set(1, 0.4 + r.mouth * 2.6, 1))));
       if (r.hairStyle && pm[r.hairStyle]) pm[r.hairStyle].setMatrixAt(r.hairIdx, headM);
       // arms
-      const a = r.arm;
+      // arms: the hand goes to a target (the lap bar, the harness handles, or up in the air) and a two-bone IK solve
+      // places the elbow on the side of its pole, so elbows always bend the way a human elbow does
+      const a = r.arm, shoulderBars = tt.restraint !== 'lap' && tt.restraint !== 'tbar', hold = shoulderBars ? HAND.harness : HAND.lap, bul = Math.sin(Math.PI * a);
       for (const sd of [-1, 1]) {
-        const sh = tmpA.set(sd * 0.178, 0.54, 0.01);
-        const shoulderBars = tt.restraint !== 'lap' && tt.restraint !== 'tbar';
-        const du = tmpB.copy(shoulderBars ? dirs.holdO : dirs.hold).lerp(dirs.up, a); du.x += sd * (0.1 + a * 0.22); du.normalize();
-        pm[sd < 0 ? 'uarmL' : 'uarmR'].setMatrixAt(i, limbM(outM, base, sh, du, 1));
-        const elbow = tmpC.copy(sh).addScaledVector(du, 0.27);
-        const df = v1.copy(shoulderBars ? dirs.holdOF : dirs.holdF).lerp(dirs.upF, a); df.x += sd * (a * 0.12 - 0.05);
-        pm[sd < 0 ? 'farmL' : 'farmR'].setMatrixAt(i, limbM(outM, base, elbow, df, 1));
+        const sh = tmpA.set(sd * 0.178 * r.build, 0.54, 0.01);
+        const wave = a > 0.6 ? Math.sin(tr.time * 5 + r.bob + sd) * 0.04 * a : 0;
+        const tgt = tmpB.set(sd * hold.x, hold.y, hold.z).lerp(v2.set(sd * (HAND.up.x + wave), HAND.up.y, HAND.up.z), a);
+        tgt.z -= bul * 0.2; tgt.x += sd * bul * 0.05;
+        const pole = v3.set(sd * 0.35, -1, 0.25).lerp(v2.set(sd, 0.15, -0.1), a);
+        const elbow = ik2(sh, tgt, 0.27, 0.27, pole, tmpC);
+        pm[sd < 0 ? 'uarmL' : 'uarmR'].setMatrixAt(i, limbM(outM, base, sh, tmpD.subVectors(elbow, sh), 1));
+        pm[sd < 0 ? 'farmL' : 'farmR'].setMatrixAt(i, limbM(outM, base, elbow, tmpD.subVectors(tgt, elbow), 1));
       }
       // legs
       const dangle = pose === 'hang' || pose === 'stand' || (pose === 'sit' && (tt.mount === 'below' || tt.mount === 'wing'));

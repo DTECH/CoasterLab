@@ -256,7 +256,7 @@ function createTunnelGfx(THREE, ctx) {
       const L = F.c.clone().addScaledVector(F.r, -W), Rr = F.c.clone().addScaledVector(F.r, W);
       const gL = ground(L.x, L.z), gR = ground(Rr.x, Rr.z), top = Math.max(gL, gR, floor + 0.6) + 0.35;
       const pts = [[-W - th, floor - 0.4], [-W - th, top], [-W, top], [-W, floor], [W, floor], [W, top], [W + th, top], [W + th, floor - 0.4]];
-      for (const [x, y] of pts) { const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); nrm.push(0, 1, 0); uv.push(x / 2, k * DS / 2.4); }
+      let per = 0; pts.forEach(([x, y], q) => { if (q) per += Math.hypot(x - pts[q - 1][0], y - pts[q - 1][1]); const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); nrm.push(0, 1, 0); uv.push(per / 2.4, k * DS / 2.4); });
       if (row > 0) for (let i = 0; i < pts.length - 1; i++) { const o = (row - 1) * pts.length; idx.push(o + i, o + i + 1, o + pts.length + i, o + i + 1, o + pts.length + i + 1, o + pts.length + i); }
       quads.push([F.c.clone().addScaledVector(F.r, -W - th * 0.5), F.c.clone().addScaledVector(F.r, W + th * 0.5), floor]);
       row++;
@@ -288,7 +288,7 @@ function createTunnelGfx(THREE, ctx) {
         // walls stand a little proud of the ground so the coarse terrain mesh never shows a gap at the cut edge
         const top = Math.max(ground(L.x, L.z), ground(R.x, R.z), ground(F.c.x, F.c.z), floor + 0.3) + 0.6;
         const pts = [[-W - th, floor - 0.4], [-W - th, top], [-W, top], [-W, floor], [W, floor], [W, top], [W + th, top], [W + th, floor - 0.4]];
-        for (const [x, y] of pts) { const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); uv.push(x / 2, k * DS / 2.4); }
+        let per = 0; pts.forEach(([x, y], q) => { if (q) per += Math.hypot(x - pts[q - 1][0], y - pts[q - 1][1]); const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); uv.push(per / 2.4, k * DS / 2.4); });
         if (row > 0) for (let q = 0; q < pts.length - 1; q++) { const o = (row - 1) * pts.length; idx.push(o + q, o + q + 1, o + pts.length + q, o + q + 1, o + pts.length + q + 1, o + pts.length + q); }
         quads.push([F.c.clone().addScaledVector(F.r, -W - th * 0.5), F.c.clone().addScaledVector(F.r, W + th * 0.5), floor]); row++;
       }

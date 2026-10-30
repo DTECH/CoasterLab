@@ -841,7 +841,9 @@ function createWorld(THREE) {
     const targetExp = !inside ? 1 : L === 'black' ? (glass ? 0.55 : 0.16) : L === 'neon' ? 0.75 : 0.85;
     tunState.exp += (targetExp - tunState.exp) * Math.min(1, dt * (targetExp < tunState.exp ? 3.5 : 1.6));
     renderer.toneMappingExposure = envBase.exposure * tunState.exp;
-    tunState.fogMix += ((glass ? 1 : 0) - tunState.fogMix) * Math.min(1, dt * 2.5);
+    // the water column fades in over a moment, but clears almost at once on leaving the tube (into a bore, a cut or open air)
+    tunState.fogMix += ((glass ? 1 : 0) - tunState.fogMix) * Math.min(1, dt * (glass ? 2.5 : 12));
+    if (!glass && tunState.fogMix < 0.02) tunState.fogMix = 0;
     if (scene.fog) { scene.fog.color.copy(envBase.fogColor).lerp(UNDERWATER_FOG, tunState.fogMix); scene.fog.density = envBase.fogDensity * (1 + tunState.fogMix * 40) + tunState.fogMix * 0.03; }
     // under the lake the sky is replaced by the colour of the water column
     const deep = tunState.fogMix > 0.5; if (skyMesh.visible === deep) { skyMesh.visible = !deep; scene.background = deep ? scene.fog.color : null; }
@@ -870,7 +872,7 @@ function createWorld(THREE) {
   function stats() { const i = renderer.info; return { fps, pr, tier: tierResolved, tierName: Q.name, tris: i.render.triangles, calls: i.render.calls }; }
   // ground and water seen by the track classifier (tunnels): the uncarved terrain and the water surface where there is water
   const probe = {
-    ground: (x, z) => terrainHeight(x, z),
+    ground: (x, z) => Math.max(terrainHeight(x, z), terrainBaseY ? meshHeight(x, z) : -1e9),   // what is drawn can sit above the shape in hollows
     water: (x, z) => { const sc = SC(); if (sc.water === 'none') return null; if (sc.water !== 'ocean' && Math.hypot(x - LAKE.x, (z - LAKE.z) * 1.35) > LAKE.r * 1.9) return null; return terrainHeight(x, z) < WATER_Y - 0.2 ? WATER_Y : null; }
   };
   return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, meshHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },

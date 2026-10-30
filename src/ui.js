@@ -739,7 +739,7 @@
   $('selQuality').onchange = () => {
     S.quality = $('selQuality').value; savePrefs(); if (!glOK) return;
     $('loading').hidden = false; $('loadS').textContent = 'Rebuilding scenery at the new quality';
-    setTimeout(() => { const t = World.setQuality(S.quality); World.setGuides(S.guides); $('loading').hidden = true; onResize(); toast(`Graphics: ${World.TIERS[t].name}`); refreshSys(); }, 40);
+    setTimeout(() => { const t = World.setQuality(S.quality); World.setGuides(S.guides); if (trk && trk.tunnels) retrackTerrain(); $('loading').hidden = true; onResize(); toast(`Graphics: ${World.TIERS[t].name}`); refreshSys(); }, 40);
   };
   $('bFull').onclick = () => { const el = stage; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (el.requestFullscreen) el.requestFullscreen().catch(() => toast('Fullscreen is not available here. Try the Full size button.')); else toast('Fullscreen is not available here'); };
   document.querySelectorAll('#sizesw button').forEach(b => b.onclick = () => { S.viewPct = +b.dataset.pct; applyStageH(); savePrefs(); });
