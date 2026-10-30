@@ -225,6 +225,8 @@ function createTrackGfx(THREE, ctx) {
     for (let s = 4; s < total - 2; s += step) {
       if (s > st0 && s < st1) continue;
       const k = Math.round(s / DS) % t.n;
+      // inside lake tubes and bores the track is carried by the tube itself (its floor rests on the channel bed)
+      if (t.tunKind && (t.tunKind[k] === TUN.WATER || t.tunKind[k] === TUN.UNDER)) { prevBent = null; continue; }
       frameAt(t, s, P, T, U, R);
       spineDir.copy(U).multiplyScalar(below ? 1 : -1);
       A.copy(P).addScaledVector(spineDir, depth);

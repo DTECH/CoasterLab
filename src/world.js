@@ -250,7 +250,7 @@ function createWorld(THREE) {
       const inPoly = (x, z, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) c = !c; } return c; };
       for (let i = 0; i < pos.count; i++) {
         const x = arr[i * 3], z = arr[i * 3 + 2]; if (x < x0 || x > x1 || z < z0 || z > z1) continue;
-        for (const f of fps) if (inPoly(x, z, f.poly)) { arr[i * 3 + 1] = Math.min(arr[i * 3 + 1], f.floor - 0.4); changed = true; break; }
+        for (const f of fps) if (f.lower !== false && inPoly(x, z, f.poly)) { arr[i * 3 + 1] = Math.min(arr[i * 3 + 1], f.floor - 0.4); changed = true; break; }
       }
     }
     if (changed) { pos.needsUpdate = true; geo.computeVertexNormals(); }
@@ -758,7 +758,17 @@ function createWorld(THREE) {
       const sc = sunLight.shadow.camera; sc.left = sc.bottom = -Q.shadowExt; sc.right = sc.top = Q.shadowExt; sc.near = 50; sc.far = 1600; sc.updateProjectionMatrix();
     }
   }
-  const ctx = { terrainHeight, Q: () => Q, design: () => design, get groundTex() { return groundTex; }, get chainTex() { return chainTex; }, get grateTex() { return grateTex; } };
+  // height of the rendered (uncarved) terrain mesh: linear over its triangles, so it can sit above terrainHeight()
+  // in hollows such as the lake bed. The grid is separable (x from i, z from j), so each axis inverts on its own.
+  const TER_E = 5200, TER_A = 0.2, terMap = u => Math.sign(u) * TER_E * (TER_A * Math.abs(u) + (1 - TER_A) * Math.abs(u) ** 3);
+  function terInv(d, N) { let lo = -1, hi = 1; for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; if (terMap(m) < d) lo = m; else hi = m; } const f = ((lo + hi) / 2 + 1) / 2 * N, i = clamp(Math.floor(f), 0, N - 1); const x0 = terMap(i / N * 2 - 1), x1 = terMap((i + 1) / N * 2 - 1); return [i, clamp((d - x0) / (x1 - x0), 0, 1)]; }
+  function meshHeight(x, z) {
+    if (!terrainBaseY) return terrainHeight(x, z);
+    const N = Math.round(Math.sqrt(terrainBaseY.length)) - 1, [i, fx] = terInv(x - VALLEY.cx, N), [j, fz] = terInv(z - VALLEY.cz, N), H = (ii, jj) => terrainBaseY[jj * (N + 1) + ii];
+    const hA = H(i, j), hB = H(i + 1, j), hC = H(i, j + 1), hD = H(i + 1, j + 1);
+    return fx + fz <= 1 ? hA + fx * (hB - hA) + fz * (hC - hA) : hD + (1 - fx) * (hC - hD) + (1 - fz) * (hB - hD);
+  }
+  const ctx = { terrainHeight, meshHeight, Q: () => Q, design: () => design, get groundTex() { return groundTex; }, get chainTex() { return chainTex; }, get grateTex() { return grateTex; } };
   function init(canvas, quality, env) {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: true });
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -863,7 +873,7 @@ function createWorld(THREE) {
     ground: (x, z) => terrainHeight(x, z),
     water: (x, z) => { const sc = SC(); if (sc.water === 'none') return null; if (sc.water !== 'ocean' && Math.hypot(x - LAKE.x, (z - LAKE.z) * 1.35) > LAKE.r * 1.9) return null; return terrainHeight(x, z) < WATER_Y - 0.2 ? WATER_Y : null; }
   };
-  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
+  return { init, setTrack, setDesign, setQuality, setEnvironment, resize, frame, render, stats, terrainHeight, meshHeight, probe, get tunnelInside() { return tunState.inside; }, get tunnelGap() { return tunnelGfx ? tunnelGfx.gap : Infinity; },
     setGuides: g => { guides = g; }, TIERS, TOD, TOD_ORDER,
     rescatter: t => scatterVegetation(t), rebuildTrains: count => trainGfx.build(design, count),
     get camera() { return camera; }, get scene() { return scene; }, get renderer() { return renderer; }, get tier() { return tierResolved; }, get gpu() { return gpuName; },

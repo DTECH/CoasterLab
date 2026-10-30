@@ -56,6 +56,7 @@ function createTunnelGfx(THREE, ctx) {
       tex,
       liner: new M({ map: tex.concrete, normalMap: tex.concreteN, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.92, side: THREE.BackSide }),
       concrete: new M({ map: tex.concrete, normalMap: tex.concreteN, color: 0xd8d3c8, roughness: 0.9 }),
+      bed: new M({ map: tex.concrete, normalMap: tex.concreteN, color: 0x8a7a5e, roughness: 1, side: THREE.DoubleSide }),
       floor: new M({ color: 0x6e6a63, roughness: 0.95, map: tex.concrete }),
       wood: new M({ map: tex.wood, normalMap: tex.woodN, roughness: 0.85, side: THREE.DoubleSide }),
       timber: new M({ color: 0x4a311b, roughness: 0.8, map: tex.wood }),
@@ -186,6 +187,7 @@ function createTunnelGfx(THREE, ctx) {
         else if (part.kind === TUN.WATER) buildWater(a, b, rin, rout, P);
         else if (part.kind === TUN.ABOVE) buildCovered(a, b, rin, P);
       }
+      buildBedding(tn, env);
       buildPortals(tn);
       buildLights(tn);
       buildParticles(tn, ti);
@@ -246,13 +248,13 @@ function createTunnelGfx(THREE, ctx) {
   function buildTrench(r, env, below) {
     const t = trk, W = Math.max(TRAIN.box[0] + 0.9, env.rc * 0.8 + 0.4), th = 0.35, pos = [], idx = [], nrm = [], uv = [];
     const a = Math.max(0, r.a - 2), b = Math.min(t.n - 1, r.b + 2);
-    const ground = (x, z) => ctx.terrainHeight(x, z);
+    const ground = (x, z) => Math.max(ctx.terrainHeight(x, z), ctx.meshHeight ? ctx.meshHeight(x, z) : -1e9);
     let row = 0; const quads = [];
     for (let k = a; k <= b; k++) {
       const F = frame(k), rail = t.py[k];
       const floor = Math.min(rail - 0.75, below ? F.c.y - env.rc - 0.3 : rail - 0.75);
       const L = F.c.clone().addScaledVector(F.r, -W), Rr = F.c.clone().addScaledVector(F.r, W);
-      const gL = ground(L.x, L.z), gR = ground(Rr.x, Rr.z), top = Math.max(gL, gR, floor + 0.6) + 0.25;
+      const gL = ground(L.x, L.z), gR = ground(Rr.x, Rr.z), top = Math.max(gL, gR, floor + 0.6) + 0.35;
       const pts = [[-W - th, floor - 0.4], [-W - th, top], [-W, top], [-W, floor], [W, floor], [W, top], [W + th, top], [W + th, floor - 0.4]];
       for (const [x, y] of pts) { const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); nrm.push(0, 1, 0); uv.push(x / 2, k * DS / 2.4); }
       if (row > 0) for (let i = 0; i < pts.length - 1; i++) { const o = (row - 1) * pts.length; idx.push(o + i, o + i + 1, o + pts.length + i, o + i + 1, o + pts.length + i + 1, o + pts.length + i); }
@@ -262,6 +264,42 @@ function createTunnelGfx(THREE, ctx) {
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
     const m = add(geo, mats.concrete, true, true); m.material = mats.concrete.clone(); m.material.side = THREE.DoubleSide;
     for (let i = 0; i < quads.length - 1; i++) footprints.push({ poly: [quads[i][0], quads[i][1], quads[i + 1][1], quads[i + 1][0]], floor: Math.min(quads[i][2], quads[i + 1][2]) });
+  }
+  // Where the ground rises into a lake tube or a covered tunnel (a lake bed or a slope higher than the tube's
+  // underside), the shell is laid in a dredged/excavated channel: the terrain inside the channel is masked out and a
+  // floor and side walls close the cut, so no ground ever reaches the riders' tube.
+  function buildBedding(tn, env) {
+    const t = trk, rout = tn.rout, W = rout + 0.45, th = 0.3, ground = (x, z) => Math.max(ctx.terrainHeight(x, z), ctx.meshHeight ? ctx.meshHeight(x, z) : -1e9);
+    const a0 = Math.max(0, tn.a - 4), b0 = Math.min(t.n - 1, tn.b + 4), need = new Uint8Array(b0 - a0 + 1);
+    for (let k = a0; k <= b0; k++) {
+      if (t.tunKind[k] === TUN.UNDER) continue;   // bored sections are sealed by the liner
+      const F = frame(k), bottom = F.c.y - rout - 0.3; let g = -1e9;
+      for (const x of [-W, -W * 0.5, 0, W * 0.5, W]) { const p = F.c.clone().addScaledVector(F.r, x); g = Math.max(g, ground(p.x, p.z)); }
+      if (g > bottom - 0.4) need[k - a0] = 1;
+    }
+    for (let pass = 0; pass < 4; pass++) for (let i = need.length - 1; i >= 0; i--) if (need[i] === 1) { if (i > 0 && !need[i - 1]) need[i - 1] = 2; if (i < need.length - 1 && !need[i + 1]) need[i + 1] = 2; }
+    let i = 0;
+    while (i < need.length) {
+      if (!need[i]) { i++; continue; } let e = i; while (e + 1 < need.length && need[e + 1]) e++;
+      const pos = [], idx = [], uv = [], quads = []; let row = 0;
+      for (let k = a0 + i; k <= a0 + e; k++) {
+        const F = frame(k), floor = F.c.y - rout - 0.3;
+        const L = F.c.clone().addScaledVector(F.r, -W), R = F.c.clone().addScaledVector(F.r, W);
+        // walls stand a little proud of the ground so the coarse terrain mesh never shows a gap at the cut edge
+        const top = Math.max(ground(L.x, L.z), ground(R.x, R.z), ground(F.c.x, F.c.z), floor + 0.3) + 0.6;
+        const pts = [[-W - th, floor - 0.4], [-W - th, top], [-W, top], [-W, floor], [W, floor], [W, top], [W + th, top], [W + th, floor - 0.4]];
+        for (const [x, y] of pts) { const p = F.c.clone().addScaledVector(F.r, x); pos.push(p.x, y, p.z); uv.push(x / 2, k * DS / 2.4); }
+        if (row > 0) for (let q = 0; q < pts.length - 1; q++) { const o = (row - 1) * pts.length; idx.push(o + q, o + q + 1, o + pts.length + q, o + q + 1, o + pts.length + q + 1, o + pts.length + q); }
+        quads.push([F.c.clone().addScaledVector(F.r, -W - th * 0.5), F.c.clone().addScaledVector(F.r, W + th * 0.5), floor]); row++;
+      }
+      if (row > 1) {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+        if (!mats.concreteDS) { mats.concreteDS = mats.concrete.clone(); mats.concreteDS.side = THREE.DoubleSide; }
+        add(geo, tn.kinds.includes(TUN.WATER) ? mats.bed : mats.concreteDS, false, true);
+        for (let q = 0; q < quads.length - 1; q++) footprints.push({ poly: [quads[q][0], quads[q][1], quads[q + 1][1], quads[q + 1][0]], floor: Math.min(quads[q][2], quads[q + 1][2]), lower: false });
+      }
+      i = e + 1;
+    }
   }
   function buildPortals(tn) {
     const rin = tn.rin;
